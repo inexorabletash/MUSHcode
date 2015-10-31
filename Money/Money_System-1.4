@@ -1,0 +1,346 @@
+@@ Money System, v1.4
+@@ By Joshua Bell
+@@ Credits:	Tash @ NarniaMUSH (code)
+@@         	Onyx, Cor, Puddleglum, Fumblethumb @ NarniaMUSH (ideas)
+
+@@ Revision History
+@@
+
+@@ 0.5	- First scripted version
+
+@@ 0.8	- Command stubs added
+@@	- Decimal -> Text functions added
+@@	- V-Register usage & documentation added
+@@	- $PAY replaced w/ $GIVE
+@@	- Help for MPAY fixed
+@@	- NO_COMMAND on non-commands added
+
+@@ 1.0	- Autoconfiguration (AUTO_CONF) added
+@@	- Multiple money system support added
+@@	-  ** FIRST RELEASE **
+
+@@ 1.1	- AUTO_CONF fixed
+@@	- Major rewrite of subroutines
+@@	- Semaphore rewrite to *double* speed
+@@	- Stubs eleminated where useless
+@@	- Value register (VV) added
+@@	- &APAY is passed amount in %0
+@@	- SUB_ERROR handler added
+@@	- Functions made TinyMUSH-pure
+@@	- Lots and lots of tiny bugfixes
+@@	- GIVE-verb for machine synch added
+@@	- &MCOST allows money strings
+@@	- $COLLECT hole ($COLLECT me) patched
+
+@@ 1.2	- $PAY ($GIVE alias) added
+@@	- Negative amount cap for donations
+@@	- $COLLECT hole patched more thoroughly
+@@	- Patched to work with TinyMUSH 2.0.10p5
+@@ 	-  ** SECOND RELEASE **
+
+@@ 1.3  - Fixed message for taking (thanks to Silenus@Narnia)
+
+@@ 1.4  - Can't buy from HALTED things (thanks to Valeria & Amberstar@Narnia)
+
+@@ Initial Setup
+@@ ~~~~~~~~~~~~~
+
+@@ Create the object. Why ATM? Automated Teller Machine :)
+@@ You'll want to put this in your Master Room.
+
+@create ATM
+@set ATM=INHERIT
+@lock ATM=#0
+&CREDITS ATM=By Joshua Bell <jsbell@acs.ucalgary.ca> aka Tash@NarniaMUSH
+
+@@ We need to define an attribute, and then make it Wizard-only.
+
+@@ NOTE: This may need to be run by your God(#1) character, depending on
+@@ local permissions. The "hidden" parameter is up to you - it is polite
+@@ to let people use their own cash in programs - money(me) becomes
+@@ v(MONEY), for example.
+
+@@ NOTE: If in the configuration section you change the attribute name,
+@@ from MONEY to something else, you will have to manually edit these
+@@ next three commands.
+
+&MONEY ATM=0
+@@ @attribute/access MONEY=wizard
+@@ @attribute/access MONEY=no_inherit
+@@ @attribute/access MONEY=hidden
+
+@@ Initialize semaphore protection on each startup, and immediately.
+
+@Startup ATM=@drain me;@notify me
+@drain ATM
+@notify ATM
+
+
+
+@@ Configuration Section
+@@ ~~~~~~~~~~~~~~~~~~~~~
+
+@@ Name of the money system. Might be "US Treasury", or something
+@@ equally meaningless.
+
+&SYSTEM_NAME ATM=Royal Narnian
+
+@@ Name of the attribute to hold the money value. If you change this,
+@@ look in the Initial Setup section, and change some of the commands
+@@ listed there.
+
+@VM ATM=MONEY
+
+@@ Names of the attributes to hold the Cost, Pay, Opay and Apay messages:
+
+@VC ATM=MCost
+@VP ATM=MPay
+@VO ATM=MOPay
+@VA ATM=MAPay
+
+@@ Names of the attribs to hold attributes called when giving money,
+@@ for command synchronization.
+
+@VG ATM=MGive
+@VH ATM=MOGive
+@VI ATM=MAGive
+
+@@ For the record, @VS is used to store the amount stolen, and @VL is
+@@ used to store the result of a locate(), so they shouldn't be reused.
+@@ @VV is used to store the value of a money string.
+@@ The free register list (mostly for my benefit) is:
+@@ VB VD VE VF VJ VK VN VQ VR VT VU VW VX VY VZ
+
+
+@@ Define the commands. These are the defaults. DO NOT CHANGE!
+
+&LIST_DEFCMDS ATM=$HELP $COINAGE $CASH $DEPOSIT $STEAL $COLLECT $GIVE $BUY $PAY
+
+@@ Change *these* next ones if you want. Keep the order the same.
+@@ Even if you don't want $STEAL used, leave it in the list. Keeping
+@@ them upper case isn't vital (it doesn't matter to the users) but
+@@ it shows up more clearly in the help.
+
+&LIST_CMDS ATM=$HELP $COINAGE $CASH $DEPOSIT $STEAL $COLLECT $GIVE $BUY $PAY
+
+
+@@ Define the coinage. The default is Narnian currency. The attributes
+@@ are values, singular names, plural names, and abbreviations.
+
+&COIN_VLIST ATM=1 0.1
+&SCOIN_NAME ATM=Lion Tree
+&PCOIN_NAME ATM=Lions Trees
+&ACOIN_NAME ATM=L t
+
+@@  Here's an example of how you'd define North American money,
+@@ albeit taken to an extreme:
+
+@@ &COIN_VLIST ATM=50 20 10 5 2 1 0.25 0.10 0.05 0.01
+@@ &SCOIN_NAME ATM=Fifty Twenty Ten Five Two Dollar Quarter Dime Nickel Penny
+@@ &PCOIN_NAME ATM=Fifties Twenties Tens Fives Twos Dollars Quarters Dimes
+@@  Nickels Pennies
+@@ &ACOIN_NAME ATM=. . . . . $ . . . c
+@@  (The abbreviations don't work too well in this example.)
+
+@@ Any comments about what the money is worth should go here.
+
+&CONF_COMMENT ATM=A full meal, with drinks and dessert, costs about 5 Trees at the%r MouseTrap Tavern. Please set your costs appropriately.
+
+
+@@ Do we want stealing? 1=Yes, 0=No
+
+&CONF_STEALING ATM=0
+
+
+@@ Do a little bit of automatic configuration.
+
+&CMD_AUTO_CONF ATM=$auto_conf:&LIST_TOPICS me=AMOUNTS GIVE BUY [switch(1,v(CONF_STEALING),STEAL%b)]COLLECT DEPOSIT CASH COINAGE COST PAY OPAY APAY GIVE2 OGIVE AGIVE;&CMD_AUTO_CONF me
+auto_conf
+
+
+@@ Command Code
+@@ ~~~~~~~~~~~~~
+@@ Some of these are the full command code. Some are just stubs
+@@ which call SUB_ attributes which do the dirty work.
+
+
+@@ Help - no argument.
+&CMD_HELP ATM=$$HELP:@pemit %#=u(HELP_MONEY)
+
+@@ Help, with one argument.
+&CMD_HELP2 ATM=$$HELP *:@switch match(v(LIST_TOPICS),%0*)=0,{@pemit %#=u(HELP_MONEY)},{@pemit %#=u(HELP_[extract(v(LIST_TOPICS),match(v(LIST_TOPICS),%0*),1)])}
+
+@@ Display the coinage table for this ATM
+&CMD_COINAGE ATM=$$COINAGE:@pemit %#=[MUDname()] - [v(SYSTEM_NAME)] Coinage:%r[space(5)][ljust(Coin:,12)][ljust(Plural:,12)][ljust(Abbrev:,12)][ljust(Value:,12)][iter(iter(lnum(words(v(COIN_VLIST))),add(##,1)),%r[space(7)][ljust(extract(v(SCOIN_NAME),##,1),12)][ljust(extract(v(PCOIN_NAME),##,1),12)][ljust(extract(v(ACOIN_NAME),##,1),12)][ljust(u(FN_FRACT,extract(v(COIN_VLIST),##,1)),12)])]%r%r[u(CONF_COMMENT)]
+
+
+@@ Report the amount of money you have.
+&CMD_CASH ATM=$$CASH:@switch/first 1=eq(get(%#/%vm),0),{@pemit %#=You have no [v(SYSTEM_NAME)] currency!},{@pemit %#=You have [u(FN_MONEYNAME,get(%#/%vm))].}
+
+@@ Report the amount of money something else has.
+&CMD_CASH2 ATM=$$CASH *:@wait me={@VL me=locate(%#,%0,*);@switch/first 1=strmatch(%vl,#-1),{@pemit %#=I don't see that here.},strmatch(%vl,#-2),{@pemit %#=Which "%0" do you mean?},eq(controls(%#,%vl),0),{@pemit %#=You do not control that!},eq(get(%vl/%vm),0),{@pemit %#=[name(%vl)] has no [v(SYSTEM_NAME)] currency.},{@pemit %#=[name(%vl)] has [u(FN_MONEYNAME,get(%vl/%vm))].};@notify me}
+
+
+@@ Deposit money on an object you control.
+&CMD_DEPOSIT ATM=$$DEPOSIT *=*:@wait me={@VL me=locate(%#,%0,*);@VV me=u(FN_VALUE,%1);@switch/first 1=strmatch(%vl,#-1),{@pemit %#=I don't see that here.},strmatch(%vl,#-2),{@pemit %#=Which "%0" do you mean?},eq(controls(%#,%vl),0),{@pemit %#=You do not control that!},lt(%vv,0),{@pemit %#=You can't deposit a negative amount of money.},eq(%vv,0),{@pemit %#=You must specify a positive amount.},eq(get(%#/%vm),0),{@pemit %#=You have no [v(SYSTEM_NAME)] currency to deposit.},gt(%vv,get(%#/%vm)),{@pemit %#=Thats more money than you have.},{@pemit %#=You deposit [u(FN_MONEYNAME,%vv)] in [name(%vl)].;&%vm %#=sub(get(%#/%vm),%vv);&%vm %vl=add(get(%vl/%vm),%vv);@pemit %#=You now have [u(FN_MONEYNAME,get(%#/%vm))].};@notify me}
+
+
+@@ Steal money from another player.
+&CMD_STEAL ATM=$$STEAL *:@wait me={@VL me=locate(%#,%0,nP);@switch/first 1=not(v(CONF_STEALING)),{@pemit %#=Permission denied.},strmatch(%vl,#-1),{@pemit %#=I don't see that here.},strmatch(%vl,#-2),{@pemit %#=Which "%0" do you mean?},not(strmatch(type(%vl),PLAYER)),{@pemit %#=Thats not a player!},hasflag(%#,HAVEN),{@pemit %#=You are set HAVEN.},hasflag(%vl,HAVEN),{@pemit %#=That player is set HAVEN.},not(hasflag(%vl,CONNECTED)),{@pemit %#=That player is not connected.},eq(get(%vl/%vm),0),{@pemit %#=You try and steal money from [name(%vl)], but can't find any to take!},gt(rand(100),35),{@pemit %#=You try and steal money from [name(%vl)], but bungle the attempt.;@pemit switch(1,gt(rand(100),40),%vl,me)=[name(%#)] tries to steal money from you, but bungles in the attempt!},{@VS me=mul(rand(trunc(fdiv(get(%vl/%vm),first(revwords(v(COIN_VLIST)))))),first(revwords(v(COIN_VLIST))));@pemit %#=You manage to steal [u(FN_MONEYNAME,%vs)] from [name(%vl)].;&%vm %#=add(get(%#/%vm),%vs);&%vm %vl=sub(get(%vl/%vm),%vs);@pemit %#=You now have [u(FN_MONEYNAME,get(%#/%vm))].};@notify me}
+
+
+
+@@ Collect money, with either one argument or two.
+&CMD_COLLECT ATM=$$COLLECT *:@VL me=locate(%#,before(%0,=),*);@trigger me/SUB_[switch(1,strmatch(%vl,#-*),ERROR,strmatch(%vl,%#),ERROR,strmatch(%0,*=*),COLLECT2,COLLECT)]=%#,%vl,u(FN_VALUE,after(%0,=))
+
+
+@@ Give money to almost anything.
+&CMD_GIVE ATM=$$GIVE *:@VL me=locate(%#,before(%0,=),*);@trigger me/SUB_[switch(1,strmatch(%vl,#-*),ERROR,not(strmatch(%0,*=*)),GIVE,strmatch(type(%vl),PLAYER),GIVE3,strmatch(type(%vl),THING),GIVE2,ERROR)]=%#,%vl,u(FN_VALUE,after(%0,=))
+
+@@ Give money to almost anything - just an alias.
+&CMD_PAY ATM=$$PAY *:@VL me=locate(%#,before(%0,=),*);@trigger me/SUB_[switch(1,strmatch(%vl,#-*),ERROR,not(strmatch(%0,*=*)),GIVE,strmatch(type(%vl),PLAYER),GIVE3,strmatch(type(%vl),THING),GIVE2,ERROR)]=%#,%vl,u(FN_VALUE,after(%0,=))
+
+
+@@ Buy from a vendor.
+&CMD_BUY ATM=$$BUY *=*:@VL me=locate(%#,%0,*);@trigger me/SUB_[switch(1,strmatch(%vl,#-*),ERROR,not(strmatch(type(%vl),THING)),ERROR,not(strmatch(%1,*\,*)),BUY,BUY2)]=%#,%vl,before(%1,\,),u(FN_VALUE,after(%1,\,))
+
+
+
+@@ Help Entries
+@@ ~~~~~~~~~~~~
+@@ Its best to leave these on the same object - they refer in places to
+@@ configuration settings, and you'd have to copy those over as well.
+
+
+&HELP_MONEY ATM=%b %t%t[v(SYSTEM_NAME)] Money Commands:%r%r %b[ljust($GIVE <thing>\[=<amount>\] %b\(or $PAY\),38)][ljust($BUY <vendor>=<product>\[\,<amount>\],38)]%r %b[ljust($DEPOSIT <object>=<amount>,38)][ljust($COLLECT <thing>\[=<amount>\],38)]%r %b[ljust($CASH \[<thing>\],38)][ljust($COINAGE,38)]%r %b[switch(v(CONF_STEALING),1,$STEAL <person>%r)]%r %b[ljust(&%vc\[-<product>\] <object>=<amount>,38)][ljust(&%vp\[-<product>\] <object>=<message>,38)]%r %b[ljust(&%vo\[-<product>\] <object>=<message>,38)][ljust(&%va\[-<product>\] <object>=<commands>,38)]%r %b[ljust(&%vg <object>=<message>,38)][ljust(&%vh <object>=<message>,38)]%r %b[ljust(&%vi <object>=<commands>,38)]%r%r %b<amount> can be specified as a decimal number or as a coinage%r %bexpression. See $HELP AMOUNTS for details.%r%r %bUse $HELP <topic> for more help on one of: [v(LIST_TOPICS)]%r %bNote: No command prefixes are used in the <topic> field for $HELP.%r
+
+&HELP_AMOUNTS ATM=%b Money Amounts:%r%r %bThe <amount> field of commands can be specified one of two%r %bways.%r%r %bThe first is to use a decimal number, in terms of the primary%r %bcoin of the monetary system, eg. 1.5 meaning [u(FN_MONEYNAME,1.5)].%r%r %bThe second way is to use the coin names or abbreviations, which%r %bare listed in $COINAGE. For example, [u(FN_MONEYNAME,1)], or [u(FN_MONEYNAME,0.5)], or%r %b[u(FN_MONEYNAME,1.5)], or any combination. You can use the singular,%r %bplural, or abbreviation names listed in $COINAGE. If you type%r %bsomething which cannot be resolved, it will be treated as 0.%r
+
+&HELP_GIVE ATM=%b Command: GIVE%r %bUsage: $GIVE <thing>\[=<amount>\]%r %b %b or: $PAY <thing>\[=<amount>\]%r%r %bThis command is used to give players and objects some of your coins.%r %bFor players, <amount> must be specified.%r%r %bFor objects, the <thing> must have an &%vc set, and you must pass %r %b<thing>'s UseLock. If <thing>'s &%vc is less than zero, it accepts%r %bdonations of any size, so you must specify an <amount>. If the &%vc%r %bis greater than zero, only the proper <amount> is accepted - any less%r %bis not enough, and any extra will be returned as change.%r%r %bExample:%r %b> $GIVE Bartender=[u(FN_MONEYNAME,2)]%r %bYou pay the Bartender.%r %bYou get [u(FN_MONEYNAME,1.5)] in change.%r%r %bSee $HELP GIVE2 for help with the &%vg attribute.%r
+
+&HELP_BUY ATM=%b Command: BUY%r %bUsage: $BUY <thing>=<product>\[,<amount>\]%r%r %bThis command is used to purchase a specific item from a vendor,%r %band allow you to specify the price paid. The &%vc-<product>%r %bof the vendor must be set, and you must pass the machine's %r %bUseLock. The <amount> argument is optional - you don't have to%r %bsupply it, and it is just a safety check to make sure you don't%r %bspend more than you are anticipating. If supplied, the same%r %brules as for $GIVE to a machine apply.%r%r %bExample:%r %b> $BUY Bartender=Aspirin,[u(FN_MONEYNAME,5)]%r %bYou buy some aspirin from the Bartender.%r %bYou get [u(FN_MONEYNAME,0.5)] in change.%r
+
+&HELP_DEPOSIT ATM=%b Command: DEPOSIT%r %bUsage: $DEPOSIT <thing>=<amount>%r%r %bThis command is used to store money on an object, like a wallet, or%r %bother secure place (see $HELP STEAL). You must control <thing> %r %b(see Help Control). This is useful for avoiding theft, as well as%r %bkeeping large amounts of money in a vault, etc.%r%r %bExample:%r %b> $DEPOSIT Wallet=2.5%r %bYou deposit [u(FN_MONEYNAME,2.5)] in Wallet.%r
+
+&HELP_STEAL ATM=%b Command: STEAL %r %bUsage: $STEAL <person>%r%r %bThis command is used to attempt to steal money from another person.%r %bThe amount is random - it will be some randomly chosen percentage%r %bof what the other is carrying, with a moderate probability of getting%r %banything at all, and a slightly higher chance of getting caught in%r %bthe attempt. You can only do this to connected players, and if they%r %bare set HAVEN (a typical convention for OOC) it will not work.%r%r %bNOTE: This command may be disabled on some MUSHes.%r%r %bExample:%r %b> $STEAL Reepicheep%r %bYou steal [u(FN_MONEYNAME,0.5)] from [name(owner(me))]!%r
+
+&HELP_COLLECT ATM=%b Command: COLLECT%r %bUsage: $COLLECT <thing>\[=<amount>\]%r%r %bThis command is used to retrieve money stored on an object or player.%r %bYou must control <thing> (see Help Control). This is useful for %r %bcollecting the profits garnered by a vendor, or retrieving money%r %bdeposited in a wallet or vault. If <amount> is not specified,%r %ball of the money <thing> has will be collected.%r%r %bExample:%r %b> $COLLECT Bartender%r %bYou collect [u(FN_MONEYNAME,7.5)] from Bartender.%r
+
+&HELP_CASH ATM=%b Command: CASH%r %bUsage: $CASH \[<thing>\]%r%r %bIf <thing> is not specified, the command reports how much money%r %byou have with you. If <thing> is specified, and you control it%r %b(see Help Control) then the amount of money <thing> has is%r %breported.%r%r %bExample:%r %b> $CASH%r %bYou have [u(FN_MONEYNAME,0.5)].%r %b> $CASH Wallet%r %bWallet has [u(FN_MONEYNAME,5.0)].%r
+
+&HELP_COINAGE ATM=%b Command: COINAGE%r %bUsage: $COINAGE%r%r %bThis command will display a table of the MUSH's coins, and their %r %bdifferent values, as well as a short description of what that %r %btranslates into in buying power.%r
+
+&HELP_COST ATM=%b Command: %vc%r %bUsage: &%vc\[-<product>\] <thing>=<amount>%r%r %bWithout the <product> specification, this is like the standard MUSH %r %bcommand @cost, but the Money System allows you to specify fractional%r %bamounts for the cost of operating a machine. You should also set an %r %b&%vp, &%vo and &%va on an object, to respond when the object is %r %bgiven money, like the @Pay, @Opay, and @Apay equivalents.%r%r %bIf <amount> is negative, <thing> will accept donations of up to the%r %babsolute (positive) value of <amount>.%r %b%r %bWith a <product> named, the object, the $BUY command may be used.%r %bThis makes it much easier for a vendor to sell a number of different%r %bitems.%r%r %bExample:%r %b> &%vc Bartender=[u(FN_MONEYNAME,1.5)]%r %bSet.%r %b> &%vc-Aspirin Bartender=[u(FN_MONEYNAME,4.5)]%r %bSet.%r
+
+&HELP_PAY ATM=%b Command: %vp%r %bUsage: &%vp\[-<product>\] <thing>=<message>%r%r %bThis is like the standard MUSH command @Pay, but is used when the %r %bobject is paid using the Money System. The person giving <thing>%r %bmoney sees <message>. If <product> is specified, then <message>%r %bis seen when someone uses $BUY and specifies that product.%r%r %bExample:%r %b> &%vp Bartender=You pay the bartender, who quickly mixes you a drink.%r %bSet.%r %b> &%vp-Aspirin Bartender=You buy some aspirin from the Bartender.%r %bSet.%r%r $PAY is just an alias for $GIVE. See $HELP GIVE for help.
+
+&HELP_OPAY ATM=%b Command: %vo%r %bUsage: &%vo\[-<product>\] <thing>=<message>%r%r %bThis is like the standard MUSH command @OPay, but is used when the %r %bobject is paid using the Money System. The everyone in the room%r %bexcept the person paying <thing> sees <message>, prepended with%r %bthe payers name and a space. %bIf <product> is specified, then %r %b<message> %b is seen when someone uses $BUY and specifies that %r %bproduct.%r%r %bExample:%r %b> &%vo Bartender=pays the bartender, who quickly mixes %%o a drink.%r %bSet.%r %b> &%vo-Aspirin Bartender=buys some aspirin from the Bartender.%r %bSet.%r
+
+&HELP_APAY ATM=%b Command: %va%r %bUsage: &%va\[-<product>\] <thing>=<command list>%r%r %bThis is like the standard MUSH command @APay, but is used when the %r %bobject is paid using the Money System. When <thing> is paid,%r %bthe command list is run. %bIf <product> is specified, then the%r %b<command list> is run when someone uses $BUY and specifies that %r %bproduct. The %%0 register is set to the decimal value paid.%r%r %bExample:%r %b> &%va Bartender=@create Glass of Mead; give %%N=Glass of Mead%r %bSet.%r %b> &%va-Aspirin Bartender=@create Two Aspirin; give %%N=Aspirin%r %bSet.%r
+
+&HELP_GIVE2 ATM=%b Command: %vg%r %bUsage: &%vg <thing>=<message>%r%r %bThe %vg attribute holds <message>, which only the recipient of a %r %b$GIVE is shown. %r%r %bExample:%r %b> &%vg King=The King hands you some coins.%r %bSet.%r
+
+&HELP_OGIVE ATM=%b Command: %vh%r %bUsage: &%vh <thing>=<message>%r%r %bThis <message> is shown to others in the same location as the%r %brecipient of a $GIVE. For the purposes of code, %%N is the name%r %bof the recipient, %%# is the dbref# of the recipient, etc.%r%r %bExample:%r %b> &%vh King=is given a handful of coins by the King.%r
+
+&HELP_AGIVE ATM=%b Command: %vi%r %bUsage: &%vi <thing>=<command list>%r%r %bThis attribute is used to hold commands to be run upon the %r %bexecution of a $GIVE command. Since the Money System is coded%r %bin MUSHcode, a $GIVE does not run in one "tick" of the queue%r %bas other commands do, and hence there is some need for %r %bsynchronization when dealing with complex vendors. The %%# %r %bregister is set to the dbref# of the recipient, and the usual%r %b%%-registers are similarly set. The %%0 register holds the%r %bvalue given.%r%r %bExample:%r %b> &%vi King=@trigger Grand Vizier/TAX_PERSON=%%#,add(%%0,1)%r
+
+
+
+@@ Command Configuration
+@@ ~~~~~~~~~~~~~~~~~~~~~
+@@ If you changed any of the command names, this code will make
+@@ the necessary edits to the command stubs and help entries.
+
+&CMD_CMDCONF ATM=$auto_conf2:@switch v(LIST_DEFCMDS)=v(LIST_CMDS),,{@dolist iter(lnum(words(v(LIST_DEFCMDS))),add(##,1))={@edit me/HELP_*=[extract(v(LIST_DEFCMDS),##,1)],[extract(v(LIST_CMDS),##,1)];@edit me/CMD_*=[extract(v(LIST_DEFCMDS),##,1)],[extract(v(LIST_CMDS),##,1)]}};&CMD_CMDCONF me
+auto_conf2
+
+@@ NOTE: If this is going to be the second copy of this code on
+@@ a MUSH, you can chop everything below this line and just @parent
+@@ the new one to the old one. If you do that, uncomment the next line
+@@ (it's present at the end of this script, but needs to be run last).
+
+@@ @dolist setdiff(lattr(ATM),lattr(ATM/CMD_*))=@set ATM/##=NO_COMMAND
+
+@@ ----- >8 ---------- >8 ---------- >8 ---------- >8 ---------- >8 -----
+
+@@ Functions
+@@ ~~~~~~~~~
+
+@@ abs() is broken for decimal values in 2.0.9p1.
+&FN_ABS ATM=mul(sign(%0),%0)
+
+@@ Return a name given a decimal value.
+&FN_MONEYNAME ATM=switch(1,eq(%0,0),nothing,mid(u(FN_RNAME,%0,iter(lnum(words(v(COIN_VLIST))),add(##,1))),1,999))
+
+@@ Recurses through the coinage lists, and figure out how many of each.
+&FN_RNAME ATM=[setq(0,extract(v(COIN_VLIST),first(%1),1))][switch(1,eq(%0,0),,words(%1),%b[u(FN_PSNAME,trunc(fdiv(%0,r(0))),%1)],gte(%0,r(0)),%b[u(FN_PSNAME,trunc(fdiv(%0,r(0))),first(%1))][u(FN_RNAME,u(FN_REMAINDER,%0,r(0)),rest(%1))],u(FN_RNAME,%0,rest(%1)))]
+
+@@ Returns the plural or singular name, where appropriate.
+&FN_PSNAME ATM=switch(1,eq(%0,1),1 [extract(v(SCOIN_NAME),%1,1)],[add(%0,0)] [extract(v(PCOIN_NAME),%1,1)])
+
+@@ The eqivalent of mod() for decimal values.
+&FN_REMAINDER ATM=sub(%0,mul(trunc(fdiv(%0,%1)),%1))
+
+@@ This returns "1/X" for a decimal number.
+&FN_FRACT ATM=switch(1,eq(%0,0),,gte(%0,1),[trunc(%0)] [u(FN_FRACT,sub(%0,trunc(%0)))],1/[fdiv(1,%0)])
+
+@@ Convert things like "1 Lion 2 Trees" into a decimal. Deal with negatives.
+&FN_VALUE ATM=switch(1,strmatch(%0,-*),mul(-1,u(FN_STARTREC,mid(%0,1,99))),u(FN_STARTREC,%0))
+
+@@ Splice the string and then start the recursion.
+&FN_STARTREC ATM=[setq(9,map(FN_SPLICE,%0))][u(FN_RUNTOT,first(r(9)),first(rest(r(9))),rest(rest(r(9))))]
+
+@@ Break up strings like "123abc456def" into "123 abc 456 def".
+&FN_SPLICE ATM=edit(edit(iter(lnum(strlen(%0)),[setq(0,mid(%0,##,1))][switch(1,xor(isnum(0[r(0)]0),isnum(0[mid(%0,add(##,1),1)]0)),r(0)-,r(0))]),%b,),-,%b)
+
+@@ This recurses through the list and makes a running total.
+&FN_RUNTOT ATM=switch(1,strmatch(%1,),%0,strmatch(%2,),u(FN_CALCVAL,%0,%1),add(u(FN_CALCVAL,%0,%1),u(fn_RUNTOT,first(%2),first(rest(%2)),rest(rest(%2)))))
+
+@@ This figures out the value of a number/word pair.
+&FN_CALCVAL ATM=fold(FN_ADD,iter(iter(lnum(words(v(COIN_VLIST))),add(##,1)),switch(1,strmatch(%1,extract(v(PCOIN_NAME),##,1)),mul(%0,extract(v(COIN_VLIST),##,1)),strmatch(%1,extract(v(SCOIN_NAME),##,1)),mul(%0,extract(v(COIN_VLIST),##,1)),strmatch(%1,extract(v(ACOIN_NAME),##,1)),mul(%0,extract(v(COIN_VLIST),##,1)),0)))
+
+@@ For fold()ing through a list of numbers to sum.
+&FN_ADD ATM=add(%0,%1)
+
+
+
+@@ Command Subroutines
+@@ ~~~~~~~~~~~~~~~~~~~
+@@ Some of the more complex commands have a few varriants. To
+@@ keep the code small enough to fit in a MUSH buffer, and
+@@ to ease processing, they call these subroutines to do most
+@@ of the work. Some of these are now pushing the buffer length
+@@ themselves dealing w/ special cases.
+
+
+@@ Collect all of the money from an object you control.
+&SUB_COLLECT ATM=@wait me={@VV me=get(%1/%vm);@switch/first 1=eq(controls(%0,%1),0),{@pemit %0=You do not control that!},eq(%vv,0),{@pemit %0=[name(%1)] has no [v(SYSTEM_NAME)] currency to collect.},{@pemit %0=[u(FN_MONEYNAME,get(%1/%vm))] collected from [name(%1)].;&%vm %0=add(get(%0/%vm),%vv);&%vm %1=sub(get(%1/%vm),%vv);@pemit %0=You now have [u(FN_MONEYNAME,get(%0/%vm))].};@notify me}
+
+@@ Collect some of the money from an object you control.
+&SUB_COLLECT2 ATM=@wait me={@switch/first 1=eq(controls(%0,%1),0),{@pemit %0=You do not control that!},lt(%2,0),{@pemit %0=You can't collect a negative amount of money.},eq(%2,0),{@pemit %0=You must specify a positive amount.},eq(get(%1/%vm),0),{@pemit %0=[name(%1)] has no [v(SYSTEM_NAME)] currency to collect.},gt(%2,get(%1/%vm)),{@pemit %0=Thats more money than [name(%1)] has.},{@pemit %0=[u(FN_MONEYNAME,%2)] collected from [name(%1)].;&%vm %0=add(get(%0/%vm),%2);&%vm %1=sub(get(%1/%vm),%2);@pemit %0=You now have [u(FN_MONEYNAME,get(%0/%vm))].};@notify me}
+
+
+@@ Pay command - no amount given.
+&SUB_GIVE ATM=@wait me={@VV me=u(FN_VALUE,get(%1/%vc));@switch/first 1=or(not(elock(%1/Use,%0)),hasflag(%1,HALTED)),{@pemit %0=You cannot pay that.},strmatch(get(%1/%vc),),{@pemit %0=[name(%1)] will not take your money.},lt(%vv,0),{@pemit %0=You must specify an amout to give to [name(%1)].},eq(%vv,0),{@pemit %0=[name(%1)] doesn't charge you.;@verb %1=%0,%vp,You pay [name(%1)].,%vo,,%va,%vv;@verb %0=%1,%vg,,%vh,,%vi,%vv},gt(%vv,get(%0/%vm)),{@pemit %0=[name(%1)] costs more than you have.},{@pemit %0=You pay [u(FN_MONEYNAME,%vv)] to [name(%1)];&%vm %0=sub(get(%0/%vm),%vv);&%vm %1=add(get(%1/%vm),%vv);@verb %1=%0,%vp,You pay [name(%1)].,%vo,,%va,%vv;@verb %0=%1,%vg,,%vh,,%vi,%vv};@notify me}
+
+@@ Pay command - amount given.
+&SUB_GIVE2 ATM=@wait me={@VV me=u(FN_VALUE,get(%1/%vc));@switch/first 1=not(elock(%1/Use,%0)),{@pemit %0=You cannot pay that.},lt(%2,0),{@pemit %0=You can't pay a negative amount!},gt(%2,get(%0/%vm)),{@pemit %0=Thats more money than you have.},strmatch(get(%1/%vc),),{@pemit %0=[name(%1)] will not take your money.},and(lt(%vv,0),eq(%2,0)),{@pemit %0=You cannot donate nothing!},and(lt(%vv,0),lte(%2,u(FN_ABS,%vv))),{@pemit %0=You give [u(FN_MONEYNAME,%2)] to [name(%1)];&%vm %0=sub(get(%0/%vm),%2);&%vm %1=add(get(%1/%vm),%2);@verb %1=%0,%vp,,%vo,,%va,%2;@verb %0=%1,%vg,,%vh,,%vi,%2},lt(%vv,0),{@pemit %0=You pay [u(FN_MONEYNAME,%2)] to [name(%1)];@VV me=u(FN_ABS,%vv);@pemit %0=You get [u(FN_MONEYNAME,sub(%2,%vv))] back in change.;&%vm %0=sub(get(%0/%vm),%vv);&%vm %1=add(get(%1/%vm),%vv);@verb %1=%0,%vp,,%vo,,%va,%vv;@verb %0=%1,%vg,,%vh,,%vi,%vv},lt(%2,%vv),{@pemit %0=Feeling poor today?},eq(%vv,0),{@pemit %0=[name(%1)] is free.;@verb %1=%0,%vp,,%vo,,%va,%vv;@verb %0=%1,%vg,,%vh,,%vi,%vv},gt(%2,%vv),{@pemit %0=You pay [u(FN_MONEYNAME,%2)] to [name(%1)].;@pemit %0=You get [u(FN_MONEYNAME,sub(%2,%vv))] back in change.;&%vm %0=sub(get(%0/%vm),%vv);&%vm %1=add(get(%1/%vm),%vv);@verb %1=%0,%vp,You pay [name(%1)].,%vo,,%va,%vv;@verb %0=%1,%vg,,%vh,,%vi,%vv},{@pemit %0=You pay [u(FN_MONEYNAME,%vv)] to [name(%1)].;&%vm %0=sub(get(%0/%vm),%vv);&%vm %1=add(get(%1/%vm),%vv);@verb %1=%0,%vp,You pay [name(%1)].,%vo,,%va,%vv;@verb %0=%1,%vg,,%vh,,%vi,%vv};@notify me}
+
+@@ Pay command - paying a person.
+&SUB_GIVE3 ATM=@wait me={@switch/first 1=and(hasflag(owner(%0),WIZARD),gt(%2,0)),{@pemit %0=You give [u(FN_MONEYNAME,%2)] to [name(%1)].;&%vm %1=add(get(%1/%vm),%2);@pemit %1=[name(%0)] gifts you with [u(FN_MONEYNAME,%2)].;@verb %0=%1,%vg,,%vh,,%vi,%2},and(hasflag(owner(%0),WIZARD),eq(%2,0)),{@pemit %0=You must specify a non-zero amount.},and(and(hasflag(owner(%0),WIZARD),lt(%2,0)),gt(u(FN_ABS,%2),get(%1/%vm))),{@pemit %0=Thats more money than [name(%1)] has.},and(hasflag(owner(%0),WIZARD),lt(%2,0)),{@pemit %0=You take [u(FN_MONEYNAME,u(FN_ABS,%2))] from [name(%1)].;&%vm %1=add(get(%1/%vm),%2);@pemit %1=[name(%0)] takes [u(FN_MONEYNAME,u(FN_ABS,%2))] from you.},gt(%2,get(%0/%vm)),{@pemit %0=Thats more money than you have.},lte(%2,0),{@pemit %0=You can't give [name(%1)] that amount!},{@pemit %0=You give [u(FN_MONEYNAME,%2)] to [name(%1)].;&%vm %1=add(get(%1/%vm),%2);&%vm %0=sub(get(%0/%vm),%2);@pemit %1=[name(%0)] gives you [u(FN_MONEYNAME,%2)].;@verb %0=%1,%vg,,%vh,,%vi,%2};@notify me}
+
+
+@@ Buy something from a machine - no amount given.
+&SUB_BUY ATM=@wait me={@VV me=u(FN_VALUE,get(%1/%vc-%2));@switch/first 1=not(elock(%1/Use,%0)),{@pemit %0=You are not allowed to buy from that.},strmatch(get(%1/%vc-2),),{@pemit %0=[name(%1)] has no such product for sale.},lt(%vv,0),{@pemit %0=[name(%1)] has a negative cost set!},gt(%vv,get(%0/%vm)),{@pemit %0=That costs more than you have.},eq(%vv,0),{@pemit %0=[name(%1)] doesn't charge you for that.;@verb %1=%0,%vp-%2,You pay [name(%1)].,%vo-%2,,%va-%2,%vv;@verb %0=%1,%vg,,%vh,,%vi,%vv},{@pemit %0=You pay [u(FN_MONEYNAME,%vv)] to [name(%1)];&%vm %0=sub(get(%0/%vm),%vv);&%vm %1=add(get(%1/%vm),%vv);@verb %1=%0,%vp-%2,You pay [name(%1)].,%vo-%2,,%va-%2,%vv;@verb %0=%1,%vg,,%vh,,%vi,%vv};@notify me}
+
+@@ Buy something from a machine - amount given.
+&SUB_BUY2 ATM=@wait me={@VV me=u(FN_VALUE,%vv);@switch/first 1=not(elock(%1/Use,%0)),{@pemit %0=You are not allowed to buy from that.},strmatch(get(%1/%vc-2),),{@pemit %0=[name(%1)] has no such product for sale.},gt(%3,get(%0/%vm)),{@pemit %0=Thats more than you have.},lt(%3,%vv),{@pemit %0=Feeling poor today?},gt(%3,%vv),{@pemit %0=You pay [u(FN_MONEYNAME,%3)] to [name(%1)];@pemit %0=You get [u(FN_MONEYNAME,sub(%3,%vv))] back in change.;&%vm %0=sub(get(%0/%vm),%vv);&%vm %1=add(get(%1/%vm),%vv);@verb %1=%0,%vp-%2,You pay [name(%1)].,%vo-%2,,%va-%2,%vv;@verb %0=%1,%vg,,%vh,,%vi,%vv},{@pemit %0=You pay [u(FN_MONEYNAME,%vv)] to [name(%1)];&%vm %0=sub(get(%0/%vm),%vv);&%vm %1=add(get(%1/%vm),%vv);@verb %1=%0,%vp-%2,You pay [name(%1)].,%vo-%2,,%va-%2,%vv;@verb %0=%1,%vg,,%vh,,%vi,%vv};@notify me}
+
+&SUB_ERROR ATM=@pemit %0=switch(1,strmatch(%1,#-1),I don't see that here.,strmatch(%1,#-2),I don't know which one you mean!,strmatch(type(%1),ROOM),The Money System only work with Players and Things.,strmatch(type(%1),EXIT),The Money System only work with Players and Things.,strmatch(%0,%1),Some Money Systems commands do not allow you to perform them on yourself.,strmatch(type(%1),PLAYER),Some Money commands do not work on players.,Huh? %bType "$HELP" for help.)
+
+@@ Attribute Mods
+@@ ~~~~~~~~~~~~~~
+@@ Most of the attributes on the object can be set NO_COMMAND, and save
+@@ the server some headaches.
+
+@dolist setdiff(lattr(ATM),lattr(ATM/CMD_*))=@set ATM/##=NO_COMMAND

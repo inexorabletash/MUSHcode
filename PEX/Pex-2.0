@@ -1,0 +1,330 @@
+@@ @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@@        Pexer    (Pretty-examiner)
+@@        Version: 2.0 (complete rewrite of formatting code)
+@@
+@@        Code for TinyMUSH 2.2 to produce output similar to 
+@@        examine and @decompile, but with code fragments formatted
+@@        like most modern languages (C, Pascal, etc).
+@@
+@@        Joshua Bell, jsbell@acs.ucalgary.ca
+@@
+@@        Requires:  TinyMUSH 2.2 (will NOT work with TinyMUSH 2.0)
+@@                   mpp version 1.1 (available where you got this code)
+@@                   configuration change to MUSH server (see below)
+@@ @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+
+@@ @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@@ The usual - create the object and give it permissions
+
+@create Pexer
+@set Pexer=INHERIT           
+
+@@ @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@@ Function invocation limits and concerns
+@@ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+@@ The formatting function is applied to every character of an 
+@@ attribute to be formatted. Only two function calls are made
+@@ for most characters, with things that require additional formatting
+@@ (less than 5% of most attributes) adding more function calls. The
+@@ maximum attribute length in TinyMUSH is 2000 characters, so you'll
+@@ want a function invocation limit of 4000 plus, say, 500 overhead to
+@@ handle really huge attributes.
+@@
+@@ The default is 2500 or so, so you're not going to seriously harm
+@@ your MUSH by upping it to 4500. The best way is to insert the line:
+@@
+@@           function_invocation_limit 4500
+@@
+@@ into one of the conf/ files. Alternatively, an @startup can be
+@@ set on the object with the Pexer code to set the limit every
+@@ time the MUSH is restarted:
+@@
+@@           @startup Pexer=@admin function_invocation_limit=4500
+@@           @trigger Pexer/Startup
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+
+@@ @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@@ User interface
+@@
+@@ +pex object[/attribute-pattern]
+@@ +dex object[/attribute-pattern][ = output name]
+
+&PEX_CMD Pexer=$+pex *:
+    @trigger me/PEX_SUB=
+        %#,
+        locate(%#,switch(%0,*/*,before(%0,/),*=*,before(%0,=),%0),*),
+        switch(%0,*/*=*,before(after(%0,/),=),*/*,after(%0,/)),
+        switch(%0,*=*,after(%0,=)),
+        -E
+
+&DEX_CMD Pexer=$+dex *:
+    @trigger me/PEX_SUB=
+        %#,
+        locate(%#,switch(%0,*/*,before(%0,/),*=*,before(%0,=),%0),*),
+        switch(%0,*/*=*,before(after(%0,/),=),*/*,after(%0,/)),
+        switch(%0,*=*,after(%0,=)),
+        -D
+
+@@ @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@@ Validate user input, and send user the results
+
+@@ Arguments:
+@@         %0    dbref# of player
+@@         %1    dbref# of target object
+@@         %2    attribute list
+@@         %3    name to use for decompile output
+@@         %4    formatting style to use (-D for decompile, -E for examine)
+@@        
+
+&PEX_SUB Pexer=
+    @switch/first 1=strmatch(%1,#-1),{
+        @pemit %0=I don't see that here.
+
+    },strmatch(%1,#-2),{
+        @pemit %0=I don't know which one you mean!
+
+    },not(or(controls(%0,%1),hasflag(%1,VISUAL))),{
+        @pemit %0=You can't examine that!
+
+    },not(words(lattr(%1/[switch(%2,,*,%2)]))),{
+        @pemit %0=No matching attributes.
+
+    },{
+        @switch %2=,{
+            @pemit %0=u(PEX_FN_HEADER%4,%1,u(PEX_FN_NAME,%3,%1),%0)
+        };
+        @dolist iter(lattr(%1/[switch(%2,,*,%2)]),switch(visible(%0,%1/##),1,##))={
+            @pemit %0=u(PEX_FN_FMTATR%4,get(%1/##),##,u(PEX_FN_NAME,%3,%1))
+        };
+        @switch %2=,{
+            @pemit %0=u(PEX_FN_FOOTER%4,%1,u(PEX_FN_NAME,%3,%1),%0)
+        }
+    }
+
+@@ @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@@ Decide whether to use & or @ to set an attribute, based on case
+
+&PEX_FN_APFX Pexer=switch(member(%0,ucstr(%0)),1,&%0,@%0)
+
+@@ @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@@ Pick a default name for an @decompile (me, here, or the object name)
+
+&PEX_FN_NAME Pexer=switch(%0,,switch(type(%1),ROOM,here,PLAYER,me,name(%1)),%0)
+
+@@ @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@@ Take a dbref# and return Name(#1234FLags) (remove SUSPECT flag)
+
+&PEX_FN_UNPARSE Pexer=
+    [name(%0)](
+        [num(%0)]
+        [switch(hasflag(%1,WIZARD),
+            1,flags(%0),
+            edit(flags(%0),u,)
+        )])
+    
+
+@@ @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@@ Examine-like formatting
+
+&PEX_FN_HEADER-E Pexer=
+    [u(PEX_FN_UNPARSE,%0,%2)]%r
+    Type: [type(%0)] %bFlags: [u(PEX_FN_FLAGS-E,%0,%2)]%r
+    Owner: [name(owner(%0))] %bLock: [switch(lock(%0),,*UNLOCKED*,lock(%0))] Money: [money(%0)]
+    [u(PEX_FN_LOCKS-E,%0,%1)]
+    [switch(parent(%0),#-1,,%rParent: [u(PEX_FN_UNPARSE,parent(%0,%2))])]
+
+&PEX_FN_FLAGS-E Pexer=iter(iter([switch(hasflag(%1,WIZARD),1,v(PEX_LIST_WIZFLAGS))] [v(PEX_LIST_FLAGS)] [v(PEX_LIST_TRANSIENTFLAGS)],switch(hasflag(%0,##),1,##)),##)
+
+&PEX_FN_LOCKS-E Pexer=
+    iter(remove(v(PEX_LIST_LOCKS),DefaultLock),switch(lock(%0/##),,,%r##: [lock(%0/##)]))
+
+&PEX_FN_FOOTER-E Pexer=
+    switch(type(%0),
+        ROOM,
+            [switch(loc(%0),#-1,,Dropped objects go to: [u(PEX_FN_UNPARSE,loc(%0,%2))]%r)],
+        EXIT,
+            Source: [u(PEX_FN_UNPARSE,home(%0,%2))]%r
+            [switch(loc(%0),#-1,,Destination: [u(PEX_FN_UNPARSE,loc(%0,%2))])],
+
+            Home: [u(PEX_FN_UNPARSE,home(%0,%2))]%r
+            Location: [u(PEX_FN_UNPARSE,loc(%0,%2))]
+    )
+
+&PEX_FN_FMTATR-E Pexer=
+    switch(%0,
+        $*,%1:[before(%0,:)]:[u(PEX_FN_INDENTIFY,after(%0,:))],
+        ^*,%1:[before(%0,:)]:[u(PEX_FN_INDENTIFY,after(%0,:))],
+        @*,%1:[u(PEX_FN_INDENTIFY,%0)],
+        &*,%1:[u(PEX_FN_INDENTIFY,%0)],
+        #*,switch(rest(%0),
+                #*,%1:%0,
+                ,%1:%0,
+                %1:[u(PEX_FN_INDENTIFY,%0)]
+            ),
+        %1:%0
+    )
+
+@@ @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@@ Decompile-like formatting
+
+&PEX_FN_HEADER-D Pexer=
+    [switch(type(%0),
+        PLAYER,@pcreate [switch(%1,me,name(%0),%1)]=<password>,
+        THING,@create %1,
+        ROOM,@dig/tel [switch(%1,here,name(%0),%1)],
+        EXIT,@open %1
+    )]
+    [iter(u(PEX_FN_FLAGS-D,%0,%2),%r@set %1=##)]
+    [switch(parent(%0),#-1,,%r@Parent %1=[parent(%0)])]
+
+
+&PEX_FN_FLAGS-D Pexer=iter(iter([switch(hasflag(%1,WIZARD),1,v(PEX_LIST_WIZFLAGS))] [v(PEX_LIST_FLAGS)],switch(hasflag(%0,##),1,##)),##)
+
+&PEX_FN_LOCKS-D Pexer=iter(v(PEX_LIST_LOCKS),switch(lock(%0/##),,,%r@lock/## %1=[lock(%0/##)]))
+
+&PEX_FN_FOOTER-D Pexer=
+    [u(PEX_FN_LOCKS-D,%0,%1)]
+    [switch(type(%0),
+        EXIT,switch(loc(%0),#-1,,@link %1=[loc(%0)]),
+        ROOM,switch(loc(%0),#-1,,@link %1=[loc(%0)]),
+             switch(home(%0),#-1,,@link %1=[home(%0)])
+    )]
+
+&PEX_FN_FMTATR-D Pexer=
+    switch(%0,
+        $*,[u(PEX_FN_APFX,%1)] %2=[before(%0,:)]:[u(PEX_FN_INDENTIFY,after(%0,:))],
+        ^*,[u(PEX_FN_APFX,%1)] %2=[before(%0,:)]:[u(PEX_FN_INDENTIFY,after(%0,:))],
+        @*,[u(PEX_FN_APFX,%1)] %2=[u(PEX_FN_INDENTIFY,%0)],
+        &*,[u(PEX_FN_APFX,%1)] %2=[u(PEX_FN_INDENTIFY,%0)],
+        #*,switch(rest(%0),
+                #*,[u(PEX_FN_APFX,%1)] %2=%0,
+                ,[u(PEX_FN_APFX,%1)] %2=%0,
+                [u(PEX_FN_APFX,%1)] %2=[u(PEX_FN_INDENTIFY,%0)]
+            ),
+        [u(PEX_FN_APFX,%1)] %2=%0
+    )
+@@ @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@@ Indenting code
+
+@@ BEWARE OF TRYING TO INTRODUCE ADDITIONAL FUNCTIONALITY!
+@@ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+@@ Additional outer-level functions added to PEX_FN_INDENTIFY2 are 
+@@ evaluated for each character in the attribute; you'll have to up
+@@ your function invocation limit and this will slow down the
+@@ operation of the code substantially. You want the average character
+@@ to execute at most 2 functions, which the code currently manages
+@@ through the use of states.
+
+&PEX_TABSIZE Pexer=4
+
+
+@@    %q0        Tabsize
+@@    %q1        Initial/current indent
+@@    %q2        "Next character is escaped" flag
+@@    %q3        "Last char was }" flag
+
+&PEX_FN_INDENTIFY Pexer=
+    [setq(0,v(PEX_TABSIZE))]
+    [setq(1,v(PEX_TABSIZE))]
+    [setq(2,0)]
+    [setq(3,0)]
+    %r[space(%q1)][foreach(PEX_FN_INDENTIFY2,%0)]
+
+
+@@ Rules: 
+@@    - Both % and \ escape the subsequent character, stripping it of
+@@      special meaning.
+@@    - ; produces a ;, a newline and an indent
+@@    - } produces a reduction in indent, a }, then a newline and an 
+@@        indent if subsequent character is not a ; or ,
+@@    - { produces a {, a newline and an indent
+
+@@ This leads to code like this:
+@@
+@@ &PEX_SUB Pexer=
+@@     @switch/first 1=strmatch(%1,#-1),{
+@@         @pemit %0=I don't see that here.
+@@     },strmatch(%1,#-2),{
+@@         @pemit %0=I don't know which one you mean!
+@@     },{
+@@         @dolist iter(lattr(%1/[switch(%2,,*,%2)]),switch(visible(%0,%1/##),1,##))={
+@@             @pemit %0=u(PEX_FN_FMTATR%4,get(%1/##),##,u(PEX_FN_NAME,%3,%1))
+@@         };
+@@         @switch %2=,{
+@@             @pemit %0=u(PEX_FN_FOOTER%4,%1,u(PEX_FN_NAME,%3,%1),%0)
+@@         }
+@@     }
+
+
+&PEX_FN_INDENTIFY2 Pexer=
+    [switch(%q3%0,
+      1%,   ,,
+      1;    ,,
+      1\}   ,,
+      1?    , %r[space(%q1)][setq(3,0)],
+    )]
+    [switch(%q2%q3%0,
+      1??    , %0[setq(2,0)],
+      ??%\%\ , %0[setq(2,1)],
+      ??%%   , %0[setq(2,1)],
+      ??\{   , %0[setq(1,add(%q1,%q0))]%r[space(%q1)],
+      ??\}   , [setq(1,sub(%q1,%q0))]%r[space(%q1)]%0[setq(3,1)],
+      ??;    , %0%r[space(%q1)][setq(3,0)],
+      ?1%,   , %0[setq(3,0)],
+               %0
+    )]
+
+@@ @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@@ This alternative function always places { and } on lines by 
+@@ themselves with indenting between them.
+
+@@ &PEX_FN_INDENTIFY2 Pexer=
+@@    [switch(%q3%0,
+@@      1;    ,,
+@@      1\}   ,,
+@@      1?    , %r[space(%q1)][setq(3,0)],
+@@    )]
+@@    [switch(%q2%q3%0,
+@@      1??    , %0[setq(2,0)],
+@@      ??%\%\ , %0[setq(2,1)],
+@@      ??%%   , %0[setq(2,1)],
+@@      ??\{   , %r[space(%q1)]%0[setq(1,add(%q1,%q0))]%r[space(%q1)],
+@@      ??\}   , [setq(1,sub(%q1,%q0))]%r[space(%q1)]%0[setq(3,1)],
+@@      ??;    , %0%r[space(%q1)][setq(3,0)],
+@@               %0
+@@    )]
+
+@@ @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@@ This is similar, but the { and } take on the new indenting,
+@@ aligning with the code block they surround.
+
+@@ &PEX_FN_INDENTIFY2 Pexer=
+@@    [switch(%q3%0,
+@@      1;    ,,
+@@      1\}   ,,
+@@      1?    , %r[space(%q1)][setq(3,0)],
+@@    )]
+@@    [switch(%q2%q3%0,
+@@      1??    , %0[setq(2,0)],
+@@      ??%\%\ , %0[setq(2,1)],
+@@      ??%%   , %0[setq(2,1)],
+@@      ??\{   , %r[setq(1,add(%q1,%q0))][space(%q1)]%0%r[space(%q1)],
+@@      ??\}   , %r[space(%q1)]%0[setq(1,sub(%q1,%q0))][setq(3,1)],
+@@      ??;    , %0%r[space(%q1)][setq(3,0)],
+@@               %0
+@@    )]
+
+@@ Various combinations can lead to any formatting style you'd like.
+
+
+@@ @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@@ Flags/Locks
+
+&PEX_LIST_FLAGS Pexer=ABODE BUILDER CHOWN_OK DARK FLOATING HAVEN INHERIT JUMP_OK KEY LINK_OK MONITOR NOSPOOF OPAQUE QUIET STICKY TRACE UNFINDABLE VISUAL WIZARD PARENT_OK AUDIBLE DESTROY_OK ENTER_OK HALTED IMMORTAL LIGHT MYOPIC PUPPET TERSE ROBOT SAFE TRANSPARENT VERBOSE SLAVE CONTROL_OK
+
+&PEX_LIST_TRANSIENTFLAGS Pexer=GOING CONNECTED
+
+&PEX_LIST_WIZFLAGS Pexer=SUSPECT
+
+&PEX_LIST_LOCKS Pexer=DefaultLock EnterLock GiveLock LeaveLock LinkLock PageLock ParentLock ReceiveLock TeloutLock TportLock UseLock UserLock
+

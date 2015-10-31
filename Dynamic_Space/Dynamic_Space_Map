@@ -1,0 +1,306 @@
+@@ @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@@ DYNAMIC SPACE  -  Map Module		Version 1.2
+
+@@ This code allows you to define vast areas of a Dynamic Space with 
+@@ default names, descs, succs, etc, by the use of a simple-to-create
+@@ ASCII map. The normal room altering commands provided by the Dynamic
+@@ Space system override anything created by the Map module, so these
+@@ areas can be further customized.
+
+@@ @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@@ Changes:
+@@ 1.2
+@@	- Use of TinyMUSH 2.2isms
+@@	- Mostly a cosmetic release to complement DS-2.8
+@@ 1.1
+@@	- Notes on using ISNULL from DS-2.7
+@@	- Note about slight optimizations possible with DS-2.7
+@@	- Optimized bits and bobs with registers and %vm
+@@	- Added example code for a "+map key" global
+
+@@ @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@@                     READ ME NOW!
+@@                     ~~~~~~~~~~~~
+@@
+@@ This script requires: Dynamic_Space-2.8 (or later)
+
+@@ The following will make little sense until you have read the 
+@@ Dynamic Space script. This is an add on! IT WILL NOT WORK ON
+@@ ITS OWN, and should be read after the DS script has at least been
+@@ configured.
+@@
+@@ You MUST read all of the directions contained within this script!
+@@
+@@ Using this script with just the defaults is pointless.
+
+@@ Suggested course of action:
+@@
+@@	1. Get this script and the matching DS script
+@@	2. Read the DS script
+@@	3. Read this script
+@@	4. Configure the DS script with whatever custom stuff you want
+@@	5. Configure this script (limits, dimensions, scale, the map)
+@@	6. Upload the DS script
+@@	7. Upload this script
+
+@@ @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@@ Make the Object to hold the Map and Functions
+
+@create Dynamic Map Object
+@set Dynamic Map Object=SAFE
+
+@fo me=@vm Dynamic Exit Parent=[num(Dynamic Map Object)]
+@fo me=@vm Dynamic Map Object=[num(Dynamic Map Object)]
+
+@@ @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@@ Step 1: Making the Map
+@@ ~~~~~~~~~~~~~~~~~~~~~~
+@@ The first thing you need to do is draw the map. Pick some key,
+@@ each character representing one room. (or possibly more, see
+@@ below under "Scales") You should not use % or \ as a symbol for 
+@@ your key, and do NOT use spaces. Using a text editor like Emacs,
+@@ or even a word processor like Word Perfect (but use a fixed 
+@@ width font like Courier!), draw a box like the one below, and 
+@@ fill it with the symbols to create the map. Its a good idea to
+@@ keep the key around, commented out in the script.
+
+@@ Key
+
+@@ oooo = forest	~~~~ = ocean
+@@ ,,,, = grassland	#    = docks
+@@ .... = desert	*    = Capital City
+@@ ^^^^ = mountains	@    = Small Village
+@@ nnnn = hills		"    = rocky coast
+
+
+@@		     21111111111        -|+        11111111112   
+@@		     09876543210987654321012345678901234567890
+&LINE-9  Map Object=+-----------------------------------------+
+&LINE-8	 Map Object=|^^^^^o,ooooooooooo,,,,,,,,"~~~~~~~~~~~~~~| 
+&LINE-7	 Map Object=|^^oo,,,,,oooo,ooooooo,,,,@#~~~~~~~~~~~~~~|
+&LINE-6	 Map Object=|^^^^oo,oooooooo,,,nnn,,,,,"~~~~~~~~~~~~~~|
+&LINE-5	 Map Object=|^,,^^^^oooooooo,,nn,,,,oo,""~~~~~~~~~~~~~|
+&LINE-4	 Map Object=|^^^,,^^^^^oooo,,nn,,oooo,""~~~~~~~~~~~~~~|
+&LINE-3	 Map Object=|^^^^^,,,^^^o,,,,,,,oooo"""~~~~~~~~~~~~~~~|
+&LINE-2	 Map Object=|^,,,,,,,,,,,,,,,,oooo"""~~~~~~~"""""""~~~|
+&LINE-1	 Map Object=|^^^^^nnn,,,,,,,,,,o"""~~~~~~~~~#@ono,"~~~|
+&LINE-0	 Map Object=|^^^^^^^nnn,,,,,,o,,,*#~~~~~~~~~"",,"""~~~|
+&LINE--1 Map Object=|...^^^^^^nnn,,,,oooo""~~~~~~~~~~""""~~~~~|
+&LINE--2 Map Object=|.......^^^^nn,,,,o,""~~~~~~~~~~~~~~~~~~~~|
+&LINE--3 Map Object=|.........^^^n,,oo,,,""~~~~~~~~~~~~~~~~~~~|
+&LINE--4 Map Object=|.......n^^nn,,oooo,,@#~~~~~~~"~~~~~~~~~~~|
+&LINE--5 Map Object=|.....nn^^^^,,ooooo,,,,""""""""~~~~~~~~~~~|
+&LINE--6 Map Object=|^.....nnn^^^^,,,ooooo,,,,,,,"~~~~~~~~~~~~|
+&LINE--7 Map Object=|^^.......nnn^^^^,,,,,,,,,"""~~~~~~~~~~~~~|
+&LINE--8 Map Object=|^^^^..........^^^^^oo,,"""~~~~~~~~~~~~~~~|
+&LINE--9 Map Object=+-----------------------------------------+
+
+@@ @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@@ Step 2: Making it MUSHcode
+@@ ~~~~~~~~~~~~~~~~~~~~~~~~~~
+@@ As you can see in the example, each line is prefixed by
+@@ &LINE-<some number> The numbers can either increase or
+@@ decrease, but making them decrease southward is preferred.
+@@ I've also included an X-axis label. I placed the Capital
+@@ City at 0,0 to make life simple. Once your labels are
+@@ complete, they will tell you what size your Dynamic Space
+@@ should be defined as, and you can set the limits
+@@ appropriately. Be warned - anything not on the space
+@@ will end up blank. The frame lines are optional, but make
+@@ the map clearer when examining the object.
+
+&X-LIMITS Dynamic Array Object=1
+&Y-LIMITS Dynamic Array Object=1
+&Z-LIMITS Dynamic Array Object=1
+
+&MAXX Dynamic Array Object=20
+&MINX Dynamic Array Object=-20
+&MAXY Dynamic Array Object=8
+&MINY Dynamic Array Object=-8
+&MAXZ Dynamic Array Object=0
+&MINZ Dynamic Array Object=0
+
+@@ Note - I made this example 2 dimensional. There is no reason it
+@@ won't work with three, but more work is required in the functions
+@@ below, where the changes are explained.
+
+@@ The following attributes hold the offset of the map's coordinates 
+@@ from the Dynamic Space's coordinates. For X coordinates, the first 
+@@ character on the line is counted as 0. The offset is the value added 
+@@ to the X coordinate when looking for a character. In this example, the 
+@@ 21st character in each line (counting from 0) represents X=0. For Y 
+@@ coordinates, LINE-0 is assumed to hold the Y=0 descriptors. If you set 
+@@ Y_OFFSET to 1, then LINE-1 on the map represents the Y=0 line.
+
+&X_OFFSET Dynamic Map Object=21
+&Y_OFFSET Dynamic Map Object=0
+
+@@ X_SCALE and Y_SCALE are used prior to the lookup. These have two
+@@ uses: The first is to cause a mirror effect, if you want the Y-axis
+@@ reversed on the map (eg, LINE-# counting down). The second effect
+@@ is to make each character on the map represent a larger area. If
+@@ values of 0.5 are used, then each character represents 4 rooms.
+
+&X_SCALE Dynamic Map Object=1
+&Y_SCALE Dynamic Map Object=1
+
+@@ Take your key and write the symbols out in a space-seperated list,
+@@ replacing the list below. This is why having your key handy helps.
+@@ The order will matter later, so make sure you know what symbol 
+@@ represents what.
+
+&TERRAIN_LIST Dynamic Map Object=o , . ^ n ~ # * @ "
+
+@@ This function finds the object terrain type given the map and a list
+@@ of types. It returns the number within the list. You should not
+@@ have to change this.
+
+&TERRAIN_TYPE Dynamic Map Object=member(get(%vm/TERRAIN_LIST),mid(get(%vm/LINE-[trunc(add(mul(%1,get(%vm/Y_SCALE)),get(%vm/Y_OFFSET)))]),trunc(add(mul(%0,get(%vm/X_SCALE)),get(%vm/X_OFFSET))),1))
+
+@@ @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@@ Step 3: Build the lookup functions
+@@ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+@@ Usually you will only need to change the Name, Desc and Succ 
+@@ attributes. I've made this simpler I'm just doing the Name. Please
+@@ remember - if you DO want the PARENT to be read off the map, it 
+@@ should be the dbref# of something that is a close duplicate of the
+@@ Dynamic Room Parent or things will get seriously screwed up.
+
+@@ This is how the Map does a Name Lookup. MAP-NAME is passed the
+@@ X, Y and Z coordinates in %0, %1 and %2. To be modular, the
+@@ NAME-* attributes are evaluated with u() and passed the coordinates
+@@ as well. You could have the name changed based on the Z coordinate
+@@ by checking %2, and using 0 as the ground level, 1 "Just above",
+@@ 2 "High above" and 3 "Far above", for example. I'm assuming
+@@ for this example that nothing can fly in this land.
+
+&MAP-NAME Dynamic Map Object=u(%vm/NAME-[u(%vm/TERRAIN_TYPE,%0,%1)],%0,%1,%2)
+
+@@ These should be in the same order as the TERRAIN_LIST symbols were.
+
+&NAME-1  Dynamic Map Object=Deep in the Forest
+&NAME-2  Dynamic Map Object=On the Open Grasslands
+&NAME-3  Dynamic Map Object=In the Desert
+&NAME-4  Dynamic Map Object=Amidst the Towering Mountains
+&NAME-5  Dynamic Map Object=In the Rolling Hills
+&NAME-6  Dynamic Map Object=On the Open Ocean
+&NAME-7  Dynamic Map Object=Down on the Docks
+&NAME-8  Dynamic Map Object=In the Streets of the Capital City
+&NAME-9  Dynamic Map Object=In a Small Village
+&NAME-10 Dynamic Map Object=On the Rocky Coastline
+
+@@ This line fixes the existing Dynamic Space code to look at the
+@@ Map Object, IF NO NAME IS SAVED ON THE ARRAY OBJECT. The Map is
+@@ used as a last recourse. You shouldn't need to touch it.
+
+&GETNAME Dynamic Exit Parent=[setq(1,get(v(ARRAY)/NAME-%0.%1.%2))][switch(r(1),,u(%vm/MAP-NAME,%0,%1,%2),r(1))]
+
+@@ You can tweak the speed of the above function marginally if you
+@@ are using DS-2.7 or later by replacing v(ARRAY) with %va
+
+@@ To do Descs, Succs, etc, simply take the above code and duplicate
+@@ it, changing NAME to DESC, SUCC, etc.
+
+@@ @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@@ Step 3.5: How I do it: Parents
+@@ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+@@ On Narnia, for the desert, I use parents for different regions.
+@@ I create one object for each region, apply the appropriate
+@@ Desc, Succ, etc (they are weather dependent) and then parent 
+@@ all of these to the Dynamic Room Parent. For a gorge, I set
+@@ BLOCKED_EXITS on the gorge parent.
+@@
+@@ Then I have GETPARENT and MAP-PARENT functions to parent individual
+@@ DS rooms to these region parents. It works well!
+@@
+@@ If you do parents, you'll want to alter *all* of the GET* functions
+@@ on the Dynamic Exit Parent - they provide defaults for descs,
+@@ and you'll want the parents to override.
+
+@@ @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@@ Step 4: Cows Can't Swim
+@@ ~~~~~~~~~~~~~~~~~~~~~~~
+@@ DS-2.7 and later allow "null" rooms that are useful for constructing
+@@ hedge-maze type layouts. However, they can also be used to disallow
+@@ certain players or creatures into certain terrain types without 
+@@ much additional code.
+
+@@ Use "NULL-#" attributes. Anything which evaluates to non-zero 
+@@ blocks the user (%#) from passing. You can just leave the NULL-#
+@@ attributes off for completely passable terrain, which counts
+@@ as zero.
+
+@@ This sample disallows anything from entering or moving around in the
+@@ water unless it has a CAN_SWIM attribute set to a non-zero value.
+@@ Presuming, of course, that the CAN_SWIM attribute is !private (which
+@@ a wizard has to do with @attribute/access). It also stops anything
+@@ from entering the mountains, much to the chagrin of any goats you
+@@ may have on the MUSH:
+
+&NULL-4 Dynamic Map Object=1
+&NULL-6 Dynamic Map Object=not(get(%#/CAN_SWIM))
+
+&MAP-NULL Dynamic Map Object=u(%vm/NULL-[u(%vm/TERRAIN_TYPE,%0,%1)],%0,%1,%2)
+
+&ISNULL Dynamic Exit Parent=u(%vm/MAP-NULL,%0,%1,%2)
+
+@@ @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@@ Step 5: Extras
+@@ ~~~~~~~~~~~~~~
+@@ There are some things the existing Dynamic Space code script does
+@@ that we probably don't want any more. The first is that the (0,0,0)
+@@ room is prenamed.
+
+&NAME-0.0.0 Dynamic Array Object
+
+@@ Note: If you "FIX"ed the initial room, you'll want to unfix it.
+@@ This will allow the Map to rename/desc/succ/etc it. I've left the 
+@@ next line commented, but it'll do the unfixing for you. Commented
+@@ out for your safety: remember, *something* has to stay fixed.
+
+@@ @Aleave get(Dynamic Array Object/num-0.0.0)
+
+@@ Nuking the default desc is probably a good idea as well:
+
+@Desc Dynamic Room Parent 
+
+@@ While it is simplest to take the ASCII map, tidy it up, and put it
+@@ in the MUSH's News file as an entry on its own, it is possible to make
+@@ a global do it within the MUSH. For example:
+
+@@ &MAP_OBJECT Global Commands=<dbref# of Dynamic Map Object>
+
+@@ &CMD_SHOW_MAP Global Commands=$+map:
+@@ 	@dolist lattr(v(MAP_OBJECT)/LINE-*)=
+@@ 		@pemit %#=get(v(map_object)/##)
+
+@@ And this does a key, just associating names with symbols.
+
+@@ &CMD_SHOW_MAP_KEY Global Commands=$+map key:
+@@ 	@dolist lnum(words(get(v(MAP_OBJECT)/TERRAIN_LIST)))=
+@@		@pemit %#=
+@@	`[extract(get(v(MAP_OBJECT)/TERRAIN_LIST),add(##,1),1)]' = 
+@@	[get(v(MAP_OBJECT)/NAME-[add(##,1)])]
+
+@@ @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@@ Step 6: Party Time
+@@ ~~~~~~~~~~~~~~~~~~
+@@ Thats it! Now that you have the scripts patched the way you want
+@@ them, run the Dynamic_Space script first, then this second.
+@@ You may have to walk one space north and then one more south
+@@ before the map kicks in, but you should now have a perfectly
+@@ functional landscape to play with!
+
+@@ Final Note:
+@@ I recommend removing the @@ comment lines before running this script
+@@ This will increase the speed of the script, and probably make your 
+@@ client and your MUSH happier. It will NOT affect the code during 
+@@ operation, however. From unix:
+
+@@ grep -v ^@@ Dynamic_Space_Map-1.2 > dsmap_script
+
+@@ Then run the dsmap_script file.
+
+@@ Alternately (since you needed to get it *anyway* to use the 
+@@ Dynamic Space code itself), pass this through mpp.
+

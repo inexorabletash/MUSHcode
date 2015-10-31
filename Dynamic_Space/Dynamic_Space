@@ -1,0 +1,985 @@
+@@ @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@@ Dynamic Space - The Next Generation
+@@ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+@@ Release:  2.8p1
+@@ Date:     95-04-15
+@@
+@@ Requires: TinyMUSH 2.2 or later
+@@           mpp MUSH Pre-processor (distributed as mpp.c)
+@@
+@@ Author:   Joshua Bell, jsbell@acs.ucalgary.ca
+@@           Algol@NarniaGolden, dobest.lib.virginia.edu 6250
+
+@@ @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@@ Changes:
+@@ ~~~~~~~~
+@@ 2.8p1  (95-04-15)
+@@	- More 2.2isms. No functional changes
+@@ 2.8    (95-04-14)
+@@	- Rewrote the whole damn exit-display stuff
+@@	- Made dimension-locks easier to add
+@@	- Lots of internal reorganizations of comments and config stuff
+@@	- Conversion to TinyMUSH 2.2isms (NOT COMPLETE!)
+@@
+@@ See "HISTORY" section at end of file for a complete list.
+
+@@ @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@@ Dynamic Space:
+@@ ~~~~~~~~~~~~~~
+@@ This code lets you set up rectilinear grids of rooms that only 
+@@ exist when needed. This is useful for doing sky areas, oceans, 
+@@ terrain, or even the surfaces of entire planets!
+@@ 
+@@ This code runs under TinyMUSH 2.2 or later, and does NOT require 
+@@ Wizard powers. Its internal recycling queue allows it to operate 
+@@ with limited quota or limited funds (although having lots of 
+@@ money is a major advantage), and for the technically inclined, 
+@@ requires only two queue cycles per movement inside the semaphore
+@@ protection.
+
+@@ @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@@ Installation notes:
+@@ ~~~~~~~~~~~~~~~~~~~
+@@ The script will have to be piped through my mpp.c "MUSH Pre-
+@@ Processor" to get rid of the comments and formatting.
+@@ The source code is available from the MUSHcode archive site
+@@ located at: ftp://caisr2.caisr.cwru.edu/pub/mush/mushcode
+@@
+@@           Read the CONFIGURATION AND SETUP NOTES 
+@@           section *before* running this script!
+@@
+@@ The script as written will run without changes, but it is 
+@@ doubtful that you will like, or be able to use the results.
+@@
+@@ You may also want to grab and read: Dynamic_Space_Map-1.2
+@@ which is the optional map module.
+
+@@ @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@@ Features:
+@@ ~~~~~~~~~
+@@
+@@ - Up to three dimensions of movement. Locks can be applied to any
+@@ direction of travel.
+@@ 
+@@ - Space can be limited to a fixed size, made to wrap around, or extended
+@@ infinitely in each dimension.
+@@ 
+@@ - Individual exits within a room can be blocked or hidden.
+@@ 
+@@ - Exits are transparent to those who pass them.
+@@ 
+@@ - The desc, succ, name, parent, and transient-status of a room can be
+@@ altered using simple commands within the DS.
+@@ 
+@@ - Permission to alter the DS can be granted via as something as simple
+@@ as a flag or lock, or any function you wish.
+@@ 
+@@ - Administrators can teleport to any valid location within the DS
+@@ volume. 
+@@ 
+@@ - The size of the room queue (used to avoid actual creation/destruction
+@@ of rooms) can be adjusted to suit the traffic expected.
+@@ 
+@@ - An optional map module which allows you to "sketch" areas in ASCII
+@@ and have them realized in the DS.
+@@ 
+@@ - Using the map, rooms can be eliminated entirely leaving "walls"
+@@ behind in the space.
+
+@@ @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@@ Conditions of use and disclaimer
+@@ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+@@
+@@ I make no claims as to the safety, reliability, or usefulness
+@@ of this code, other than: it has worked for me, and has not caused
+@@ any harm to the MUSHes I have tried it on. There are probably
+@@ still bugs in it, although I attempt to patch these as I find them.
+@@
+@@ I'm willing to answer questions about setting up DS, modifying it
+@@ for custom use, or how portions of the code work. I'm not willing
+@@ to set it up for you, or to teach you everything required to
+@@ do it yourself (this is not for the beginner!). 
+@@
+@@ Permission is granted to run this code on any platform you chose,
+@@ with the provision that you let me know if you port it to another
+@@ server platform, find bugs, patch bugs, or add functionality that 
+@@ may be of interest to others.
+
+@@ @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@@ Available Ports
+@@ ~~~~~~~~~~~~~~~
+@@
+@@ TinyMUSH 2.0.9p2
+@@ ~~~~~~~~~~~~~~~~
+@@ The last dedicated code for the 2.0 line of TinyMUSH
+@@ is Dynamic_Space-2.7p2. Look for it where you found this code.
+@@ Development on this line probably won't continue.
+@@
+@@ PennMUSH 1.5p10
+@@ ~~~~~~~~~~~~~~~
+@@ Joe Bui <jsb11@dewey.EEAP.CWRU.Edu> has ported DS 2.7 to PennMUSH.
+@@ "I doubt that it will work with lower versions of PennMUSH since I
+@@  used db-modifying functions."
+@@ Joshua Bell has applied patches to bring it in line with 2.7p2
+@@ code but these have not been tested.
+@@
+@@ TinyMUSE
+@@ ~~~~~~~~
+@@ A MUSE port (of sorts) is also available. Contact
+@@ czar@Wittenberg.EDU for more information
+
+@@ @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@@ Credits:
+@@ ~~~~~~~~
+@@ Code: 	  Algol@NarniaGolden (was Tash@Narnia)
+@@ Concept: 	  Talek@PernMUSH
+@@ Instigator: 	  Ehlrick@TooMUSH
+@@ Suggestions:   The Hermit@Narnia, Tangent@TooMUSH, Edmund@Narnia, 
+@@		  Pomona@TooMUSH, Talek@PernMUSH, Fumblethumb@Narnia,
+@@ 		  Andrew Molitor, Rilian@Narnia, Maud@Narnia, 
+@@		  Drayton@Narnia, Frank@Narnia, Kent Jenkins
+@@
+@@ PennMUSH Ports: Rilian@Narnia (2.3)
+@@                 Joe Bui <jsb11@dewey.EEAP.CWRU.Edu>  (2.7)
+@@
+@@ TinyMUSE Port:  czar@Wittenberg.EDU (2.?)
+
+@@ -----8<----CUT HERE----8<--------8<--------8<--------8<--------8<----
+
+@@ @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@@ Create the Origin Room
+@@ ~~~~~~~~~~~~~~~~~~~~~~
+
+@dig/tel Center of a Vast Plane
+&XCOOR here=0
+&YCOOR here=0
+&ZCOOR here=0
+@set here=FLOATING
+
+@@ Create the relevant objects
+@@ ~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+@create Dynamic Room Parent
+@create Dynamic Exit Parent
+@create Dynamic Array Object
+
+@parent here=Dynamic Room Parent
+
+@set Dynamic Room Parent=SAFE
+@set Dynamic Room Parent=HALTED
+@set Dynamic Exit Parent=SAFE
+@set Dynamic Array Object=SAFE
+
+@@ Store object dbref#s
+@@ ~~~~~~~~~~~~~~~~~~~~
+
+@fo me=&NAME-0.0.0 Dynamic Array Object=[name(here)]
+@fo me=&NUM-0.0.0 Dynamic Array Object=[num(here)]
+
+@fo me=&ARRAY Dynamic Room Parent=[num(Dynamic Array Object)]
+@fo me=&ARRAY Dynamic Exit Parent=[num(Dynamic Array Object)]
+@fo me=@va Dynamic Room Parent=[num(Dynamic Array Object)]
+@fo me=@va Dynamic Exit Parent=[num(Dynamic Array Object)]
+
+@fo me=&ROOM_PARENT Dynamic Exit Parent=[num(Dynamic Room Parent)]
+@fo me=&EXIT_PARENT Dynamic Room Parent=[num(Dynamic Exit Parent)]
+
+
+@@ @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@@ @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@@ 
+@@ CONFIGURATION AND SETUP NOTES SECTION
+@@ 
+@@ @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+
+
+@@ @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@@ Entry and Exit to/from a DS
+@@ ~~~~~~~~~~~~~~~~~~~~~~~~~~~
+@@ ...should be done via normal exits linked to/from the DS, or 
+@@ teleportation to rooms which are "fixed" using the "fix here" 
+@@ building command.
+@@
+@@ All non-dynamic exits in a DS should be set DARK; use the
+@@ "hide exit=<exitname>" building command to conceal them.
+
+
+@@ @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@@ Set up the Inherited Exits
+@@ ~~~~~~~~~~~~~~~~~~~~~~~~~~
+@@ Note: If you only want N/S/E/W, just delete the NE/NW/SE/SW code.
+@@ Similarly, if you only want two dimensions, delete out U/D
+
+@@ If you want more exits (to have the 26 possible 3D directions, say)
+@@ add lines to make and parent the new exits, and just add the 
+@@ appropriate X/Y/ZNEW attributes. North, East, and Up should be 
+@@ add(), South, West, and Down should be sub(). All exits need to
+@@ be set DARK. To hide exits (say, Up and Down) add:
+@@
+@@           &DARK_EXITS Dynamic Room Parent=|Up|Down
+
+@@ @Succ, @Osucc, @Odrop work like they normally do, but %0 is the
+@@ dbref# of the player attempting the exit; to emulate %p you need
+@@ to use [poss(%0)]. FAKE_FAIL is the same as @fail (which cannot
+@@ be used!), again with %0 being the player dbref#.
+
+@@ The exits attempt to be transparent to those who can pass through;
+@@ NO_DESC is seen if the target room is out of range, and the
+@@ FAIL_DESC is seen if the exit is blocked or not passable. 
+
+drop Dynamic Room Parent
+enter Dynamic Room Parent
+
+@open Up;u
+@set Up=DARK
+@parent Up=Dynamic Exit Parent
+@lock Up=me&!me
+@link Up=here
+&ZNEW Up=add(get(%0/ZCOOR),1)
+@set Up=DARK
+@Succ Up=You head upwards.
+@Osucc Up=heads upwards.
+@Odrop Up=comes up from below.
+&FAKE_FAIL Up=You find you cannot travel further upward.
+&NO_DESC Up=You cannot discern anything further above you.
+&FAIL_DESC Up=It appears impossible to travel further upwards.
+
+@open Down;d
+@set Down=DARK
+@parent Down=Dynamic Exit Parent
+@lock Down=me&!me
+@link Down=here
+&ZNEW Down=sub(get(%0/ZCOOR),1)
+@set Down=DARK
+@Succ Down=You head downwards.
+@Osucc Down=heads downwards.
+@Odrop Down=comes down from above.
+&FAKE_FAIL Down=You find you cannot travel further downward.
+&NO_DESC Down=You cannot discern anything further below you.
+&FAIL_DESC Down=It appears impossible to descend further.
+
+@open Northwest;nw
+@set Northwest=DARK
+@parent Northwest=Dynamic Exit Parent
+@lock Northwest=me&!me
+@link Northwest=here
+&YNEW Northwest=add(get(%0/YCOOR),1)
+&XNEW Northwest=sub(get(%0/XCOOR),1)
+@Succ Northwest=You head northwest.
+@Osucc Northwest=heads northwest.
+@Odrop Northwest=comes in from the southeast.
+&FAKE_FAIL Northwest=You find you cannot travel further northwest.
+&NO_DESC Northwest=You cannot discern anything further to the northwest.
+&FAIL_DESC Northwest=Travel to the northwest appears blocked.
+
+@open North;n
+@set North=DARK
+@parent North=Dynamic Exit Parent
+@lock North=me&!me
+@link North=here
+&YNEW North=add(get(%0/YCOOR),1)
+@Succ North=You head north.
+@Osucc North=heads north.
+@Odrop North=comes in from the south.
+&FAKE_FAIL North=You find you cannot travel further north.
+&NO_DESC North=You cannot discern anything further to the north.
+&FAIL_DESC North=Travel to the north appears blocked.
+
+@open Northeast;ne
+@set Northeast=DARK
+@parent Northeast=Dynamic Exit Parent
+@lock Northeast=me&!me
+@link Northeast=here
+&YNEW Northeast=add(get(%0/YCOOR),1)
+&XNEW Northeast=add(get(%0/XCOOR),1)
+@Succ Northeast=You head northeast.
+@Osucc Northeast=heads northeast.
+@Odrop Northeast=comes in from the southwest.
+&FAKE_FAIL Northeast=You find you cannot travel further northeast.
+&NO_DESC Northeast=You cannot discern anything further to the northeast.
+&FAIL_DESC Northeast=Travel to the northeast appears blocked.
+
+@open East;e
+@set East=DARK
+@parent East=Dynamic Exit Parent
+@lock East=me&!me
+@link East=here
+&XNEW East=add(get(%0/XCOOR),1)
+@Succ East=You head east.
+@Osucc East=heads east.
+@Odrop East=comes in from the west.
+&FAKE_FAIL East=You find you cannot travel further east.
+&NO_DESC East=You cannot discern anything further to the east.
+&FAIL_DESC East=Travel to the east appears blocked.
+
+@open Southeast;se
+@set Southeast=DARK
+@parent Southeast=Dynamic Exit Parent
+@lock Southeast=me&!me
+@link Southeast=here
+&XNEW Southeast=add(get(%0/XCOOR),1)
+&YNEW Southeast=sub(get(%0/YCOOR),1)
+@Succ Southeast=You head southeast.
+@Osucc Southeast=heads southeast.
+@Odrop Southeast=comes in from the northwest.
+&FAKE_FAIL Southeast=You find you cannot travel further southeast.
+&NO_DESC Southeast=You cannot discern anything further to the southeast.
+&FAIL_DESC Southeast=Travel to the southeast appears blocked.
+
+@open South;s
+@set South=DARK
+@parent South=Dynamic Exit Parent
+@lock South=me&!me
+@link South=here
+&YNEW South=sub(get(%0/YCOOR),1)
+@Succ South=You head south.
+@Osucc South=heads south.
+@Odrop South=comes in from the north.
+&FAKE_FAIL South=You find you cannot travel further south.
+&NO_DESC South=You cannot discern anything further to the south.
+&FAIL_DESC South=Travel to the south appears blocked.
+
+@open Southwest;sw
+@set Southwest=DARK
+@parent Southwest=Dynamic Exit Parent
+@lock Southwest=me&!me
+@link Southwest=here
+&XNEW Southwest=sub(get(%0/XCOOR),1)
+&YNEW Southwest=sub(get(%0/YCOOR),1)
+@Succ Southwest=You head southwest.
+@Osucc Southwest=heads southwest.
+@Odrop Southwest=comes in from the northeast.
+&FAKE_FAIL Southwest=You find you cannot travel further southwest.
+&NO_DESC Southwest=You cannot discern anything further to the southwest.
+&FAIL_DESC Southwest=Travel to the southwest appears blocked.
+
+@open West;w
+@set West=DARK
+@parent West=Dynamic Exit Parent
+@lock West=me&!me
+@link West=here
+&XNEW West=sub(get(%0/XCOOR),1)
+@Succ West=You head west.
+@Osucc West=heads west.
+@Odrop West=comes in from the east.
+&FAKE_FAIL West=You find you cannot travel further west.
+&NO_DESC West=You cannot discern anything further to the west.
+&FAIL_DESC West=Travel to the west appears blocked.
+
+leave
+
+
+@@ @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@@ Builder Lock
+@@ ~~~~~~~~~~~~
+@@ Look at the ISBUILDER code - anything for which that function
+@@ returns a 1 is allowed to use the commands in the next section.
+@@ You could do a member list, or whatever. 
+
+&ISBUILDER Dynamic Room Parent=[hasflag(%#,builder)]
+@lock/UseLock Dynamic Room Parent=ISBUILDER/1
+
+
+@@ @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@@ Limits
+@@ ~~~~~~
+@@ You can define the limits of the Dynamic Space in three ways for
+@@ each of the three dimensions. Set the corresponding *-LIMITS to:
+@@ 0 - No Limits. Object may travel forever in that direction.
+@@ 1 - Hard Limits. Objects hit a 'wall' when they reach the boundary.
+@@ 2 - Wrapping. Objects that reach one edge pass through to the opposite
+@@  edge of the plane.
+
+&X-LIMITS Dynamic Array Object=2
+&Y-LIMITS Dynamic Array Object=1
+&Z-LIMITS Dynamic Array Object=1
+
+&MAXX Dynamic Array Object=10
+&MINX Dynamic Array Object=-10
+&MAXY Dynamic Array Object=10
+&MINY Dynamic Array Object=-10
+&MAXZ Dynamic Array Object=5
+&MINZ Dynamic Array Object=0
+
+
+@@ @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@@ Room Queue 
+@@ ~~~~~~~~~~
+@@ The default is between 3 and 6 rooms on the queue at any one time, 
+@@ create or destroy any extra as needed. If you anticipate heavy use,
+@@ you can up the lower end. I don't think more than 5 will ever be
+@@ needed. The maximum limit is just an 'in case', and should never be
+@@ set too high, although it should be at least 3 more than the minimum.
+
+&QUEUE-MIN Dynamic Array Object=3
+&QUEUE-MAX Dynamic Array Object=6
+
+
+@@ @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@@ Dimension Locks
+@@ ~~~~~~~~~~~~~~~
+@@ The default to allow anyone to move in any direction. To restrict
+@@ motion in certain directions, do something like this:
+@@
+@@         &DIM_LOCK Up=strmatch(get(%#/HAS_WINGS),Yes)
+@@
+@@ Travel is permitted if this function returns a true value (non-0)
+
+
+@@ @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@@ Null Rooms
+@@ ~~~~~~~~~~
+@@ While the code for these is built in here, the best description
+@@ and implementation is in the optional Map Module. If you want to
+@@ use this feature without maps, you need to write something like this:
+@@
+@@         &ISNULL Dynamic Exit Parent=<MyFunction>
+@@
+@@ %0, %1 and %2 are preset to the X, Y and Z coords of the target room.
+
+
+@@ @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@@ SEE ALSO:
+@@ ~~~~~~~~~
+@@ There's a section later in the code titled "Generic Attributes" that
+@@ you should look at.
+
+
+@@ @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@@ 
+@@ END OF CONFIGURATION AND SETUP NOTES SECTION
+@@ 
+@@ @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@@ @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+
+
+@@ @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@@ Description Generation
+@@ ~~~~~~~~~~~~~~~~~~~~~~
+@@ All exits must be kept dark, so the Adesc provides both the
+@@ exit list and instructions on how builders can see a command 
+@@ list. TERSE players see neither, you may want to alter that. 
+
+@Desc Dynamic Room Parent=The plane is featureless.
+
+@Adesc Dynamic Room Parent=
+	@pemit %#=[switch(hasflag(%#,TERSE),0,
+	 [setq(1,setunion(v(DARK_EXITS),u(DE_HIDE_BORDER),|))]
+	 [setq(0,filter(DE_FILTER,lexits(%!)))]
+	 [switch(words(%q0),0,,Obvious exits:%r[iter(%q0,name(##)%b)])]
+	 [switch(u(ISBUILDER),1,%rType "DS Help" for DS Builder commands.)]
+	)]
+
+&DE_FILTER Dynamic Room Parent=
+	switch(member(lcstr(%q1),lcstr(name(%0)),|),0,1,0)
+
+@@ Border exits are hidden if you're using hard limits.
+@@ If you don't want this. just remove DE_HIDE_BORDER
+
+&DE_HIDE_BORDER Dynamic Room Parent=
+	edit(trim(squish(
+	[switch(11,[get(%va/X-LIMITS)][eq(v(XCOOR),get(%va/MAXX))],East|Northeast|Southeast)]%b
+	[switch(11,[get(%va/X-LIMITS)][eq(v(XCOOR),get(%va/MINX))],West|Northwest|Southwest)]%b	
+	[switch(11,[get(%va/Y-LIMITS)][eq(v(YCOOR),get(%va/MAXY))],North|Northwest|Northeast)]%b
+	[switch(11,[get(%va/Y-LIMITS)][eq(v(YCOOR),get(%va/MINY))],South|Southwest|Southeast)]%b
+	[switch(11,[get(%va/Z-LIMITS)][eq(v(ZCOOR),get(%va/MAXZ))],Up)]%b
+	[switch(11,[get(%va/Z-LIMITS)][eq(v(ZCOOR),get(%va/MINZ))],Down)]
+	)),%b,|)
+
+@@ @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@@ Building Commands
+@@ ~~~~~~~~~~~~~~~~~
+@@ You can add to these, just remember to add code to the Afail code
+@@ of the Exit Parent. 
+
+&DESC_HERE Dynamic Room Parent=$desc here=*:
+	@desc me=%0;
+	&desc-[v(XCOOR)].[v(YCOOR)].[v(ZCOOR)] %va=%0;
+	@pemit %#=Desc set.
+
+&SUCC_HERE Dynamic Room Parent=$succ here=*:
+	@succ me=%0;
+	&succ-[v(XCOOR)].[v(YCOOR)].[v(ZCOOR)] %va=%0;
+	@pemit %#=Succ set.
+
+&NAME_HERE Dynamic Room Parent=$name here=*:
+	@name me=%0;
+	&name-[v(XCOOR)].[v(YCOOR)].[v(ZCOOR)] %va=%0;
+	@pemit %#=Name set.
+
+&COORDS_HERE Dynamic Room Parent=$coords:
+	@pemit %#=X coordinate = [v(XCOOR)], Y coordinate = [v(YCOOR)], Z coordinate = [v(ZCOOR)]
+
+&FIX_HERE Dynamic Room Parent=$fix here:
+	@aleave me=@@;
+	@pemit %#=Room fixed.
+
+&PARENT_HERE Dynamic Room Parent=$parent here=*:
+	@parent me=%0;
+	&parent-[v(XCOOR)].[v(YCOOR)].[v(ZCOOR)] %va=%0;
+	@pemit %#=Parent set.
+
+@@ WARNING! If you change the Parent on a room, you MUST be sure that
+@@ the Dynamic Room Parent (or a close copy) occurs SOMEWHERE in the
+@@ new Parent chain, otherwise the room will not have the proper exits.
+
+@@ You'll also want to make sure you change the GETDESC function
+@@ and replace the {Default description.} with {}
+
+&CMD_HIDE_EXIT Dynamic Room Parent=$hide exit=*:
+	@switch locate(%L,%0,c)=
+		#-1,{@pemit %#=I don't see that exit here.},
+		#-2,{@pemit %#=I don't know which exit you mean!},
+		{
+	&DARK_EXITS %!=setunion(v(DARK_EXITS),lcstr(name(locate(%L,%0,c))),|);
+	&DARK_EXITS-[v(XCOOR)].[v(YCOOR)].[v(ZCOOR)] %va=v(DARK_EXITS);
+	@pemit %#=Exit hidden.
+		}
+
+&CMD_SHOW_EXIT Dynamic Room Parent=$show exit=*:
+	@switch locate(%L,%0,c)=
+		#-1,{@pemit %#=I don't see that exit here.},
+		#-2,{@pemit %#=I don't know which exit you mean!},
+		{
+	&DARK_EXITS %!=setdiff(v(DARK_EXITS),lcstr(name(locate(%L,%0,c))),|);
+	&DARK_EXITS-[v(XCOOR)].[v(YCOOR)].[v(ZCOOR)] %va=v(DARK_EXITS);
+	@pemit %#=Exit revealed.
+		}
+
+&CMD_HIDDEN_EXITS Dynamic Room Parent=$list hidden exits:
+	@pemit %#=Hidden exits: [edit(v(DARK_EXITS),|,%b%b)]
+
+
+&CMD_BLOCK_EXIT Dynamic Room Parent=$BLOCK exit=*:
+	@switch locate(%L,%0,c)=
+		#-1,{@pemit %#=I don't see that exit here.},
+		#-2,{@pemit %#=I don't know which exit you mean!},
+		{
+	&BLOCKED_EXITS %!=setunion(v(BLOCKED_EXITS),lcstr(name(locate(%L,%0,c))),|);
+	&BLOCKED_EXITS-[v(XCOOR)].[v(YCOOR)].[v(ZCOOR)] %va=v(BLOCKED_EXITS);
+	@pemit %#=Exit blocked.
+		}
+
+&CMD_OPEN_EXIT Dynamic Room Parent=$OPEN exit=*:
+	@switch locate(%L,%0,c)=
+		#-1,{@pemit %#=I don't see that exit here.},
+		#-2,{@pemit %#=I don't know which exit you mean!},
+		{
+	&BLOCKED_EXITS %!=setdiff(v(BLOCKED_EXITS),lcstr(name(locate(%L,%0,c))),|);
+	&BLOCKED_EXITS-[v(XCOOR)].[v(YCOOR)].[v(ZCOOR)] %va=v(BLOCKED_EXITS);
+	@pemit %#=Exit opened.
+		}
+
+&CMD_BLOCKED_EXITS Dynamic Room Parent=$list BLOCKED exits:
+	@pemit %#=Blocked exits: [edit(v(BLOCKED_EXITS),|,%b%b)]
+
+@parent Dynamic Room Parent=Dynamic Exit Parent
+
+&CMD_TELTO Dynamic Room Parent=$telto * * *:
+	@wait %va={
+		@trigger v(EXIT_PARENT)/
+			[setq(7,add(%0,0))]
+			[setq(8,add(%1,0))]
+			[setq(9,add(%2,0))]
+			[switch(0,
+			u(INBOUNDS,%q7,%q8,%q9),DUMMY,
+			comp(get(%va/NUM-%q7.%q8.%q9),),ALLOC_ROOM,
+			TEL_TO_ROOM
+		)]=%#,%L,%N,%q7,%q8,%q9
+	}
+
+
+&CMD_DS_HELP Dynamic Room Parent=
+	$DS Help:@pemit %#=
+	{
+ %rYou can use the following commands:%r
+ %b'name here=<new name>'%b %b'coords' - find out your current coordinates%r
+ %b'desc here=<new desc>'%b %b'fix here' - stop this room from being recycled%r
+ %b'succ here=<new succ>'%b %b'parent here=<new parent>' - be careful!!%r
+ %b'hide exit=<exitname>'%b %b'show exit=<exitname>' %b 'list hidden exits'%r
+ %b'block exit=<exitname>'%b 'open exit=<exitname>' %b 'list blocked exits'%r
+ %b'telto <x> <y> <z>' - teleport to those coordinates, if they're valid%r
+	}
+
+@@ @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@@ Recycling Code
+@@ ~~~~~~~~~~~~~~
+@@ This code allows you to get away with not @digging at every step.
+@@ The system keeps a short queue of rooms to reuse.
+
+@@ Rooms get recycled when they have no contents, and only their 
+@@ inherited exits remain, unless they have been 'fixed'.
+
+@Aleave Dynamic Room Parent=
+	@switch and(eq(words(lcon(me)),0),eq(words(lexits(me)),words(lexits(parent(me)))))=1,
+		{
+		&num-[v(XCOOR)].[v(YCOOR)].[v(ZCOOR)] %va=
+			setdiff(get(%va/num-[v(XCOOR)].[v(YCOOR)].[v(ZCOOR)]),num(me));
+		&recycle_list %va=setunion(get(%va/RECYCLE_LIST),num(me));
+		@name me=DS Recycled Room;
+		@parent me;
+		@dolist lattr(me)={&## me};
+		@trigger %va/RECYCLE
+		}
+
+@@ In case of spurious rooms, force a check on startup.
+
+@Startup Dynamic Room Parent=@trigger me/Aleave
+
+@@ The Array Object itself handles the queue, creation and destruction 
+@@ of rooms as needed.
+
+&RECYCLE Dynamic Array Object=
+	@switch words(v(RECYCLE_LIST))=
+		<[v(QUEUE-MIN)],
+			{
+			@dig DS Recycled Room;
+			@trigger me/RECYCLE
+			},
+		>[v(QUEUE-MAX)],
+			{
+			@destroy first(v(RECYCLE_LIST));
+			&recycle_list me=rest(v(RECYCLE_LIST));
+			@trigger me/RECYCLE
+			}
+
+@Listen Dynamic Array Object=* created with room number *.
+@Amhear Dynamic Array Object=
+	&RECYCLE_LIST me=cat(v(RECYCLE_LIST),#%1);
+	@set #%1=FLOATING
+
+@@ Generate an Initial Queue
+@@ ~~~~~~~~~~~~~~~~~~~~~~~~~
+
+@trigger Dynamic Array Object/RECYCLE
+
+@@ @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@@ Locks and Defaults
+@@ ~~~~~~~~~~~~~~~~~~
+
+@@ No Fail message - the &FAKE_FAIL takes care of that.
+
+@Fail Dynamic Exit Parent=\
+
+@@ The lock for exits - non-blocked and non-null and valid dimension lock
+
+&PASS_LOCK Dynamic Exit Parent=
+	[and(
+		not(member(lcstr(get(%L/BLOCKED_EXITS)),lcstr(name(%!)),|)),
+		not(u(ISNULL,%q7,%q8,%q9)),
+		u(DIM_LOCK)
+	)]
+
+@@ Default dimension lock, everyone passes
+
+&DIM_LOCK Dynamic Exit Parent=1
+
+@@ Default null-room status
+
+&ISNULL Dynamic Exit Parent=0
+
+
+@@ @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@@ Transparent Exit Description
+@@ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+@@ The desc and succ are seen if the exit is passable to the looker, 
+@@ defaulting to the parent room if nothing can be found in the array. 
+@@ The NO_DESC attrib is seen if the target room is out of range, and 
+@@ the FAIL_DESC is seen if the exit is blocked or not passable. 
+@@
+@@ If you are modelling sky, you may wish to copy the @desc attribute to 
+@@ your up/down exits, and comment out the chunk:
+@@                 not(u(PASS_LOCK)),v(FAIL_DESC),
+@@ This will allow unpassable exits (eg, to non-fliers) to be seen 
+@@ from the ground.
+
+@@ The second [setq(... line handles the @succ view. Remove if unwanted.
+
+@Desc Dynamic Exit Parent=
+	[setq(7,u(DXNEW,u(XNEW,%L)))]
+	[setq(8,u(DYNEW,u(YNEW,%L)))]
+	[setq(9,u(DZNEW,u(ZNEW,%L)))]
+	[switch(1,
+	not(u(INRANGE,%q7,%q8,%q9)),v(NO_DESC),
+	not(u(PASS_LOCK)),v(FAIL_DESC),
+	[setq(0,s(u(GETDESC,%q7,%q8,%q9)))]
+	[switch(%q0,,get_eval(u(GETPARENT,%q7,%q8,%q9)/Desc),%q0)]
+	[setq(0,s(u(GETSUCC,%q7,%q8,%q9)))]
+	[switch(%q0,,setq(0,get_eval(u(GETPARENT,%q7,%q8,%q9)/Succ)))]
+	[switch(%q0,,,%r%q0)]
+	)]
+
+@@ @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@@ Target Room Calculation Functions
+@@ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+&INRANGE Dynamic Exit Parent=
+	and(
+		or(neq(get(%va/X-LIMITS),1),u(IS_IN_X,%0)),
+		or(neq(get(%va/Y-LIMITS),1),u(IS_IN_Y,%1)),
+		or(neq(get(%va/Z-LIMITS),1),u(IS_IN_Z,%2))
+	)
+
+&INBOUNDS Dynamic Exit Parent=
+	and(
+		or(not(get(%va/X-LIMITS)),u(IS_IN_X,%0)),
+		or(not(get(%va/Y-LIMITS)),u(IS_IN_Y,%1)),
+		or(not(get(%va/Z-LIMITS)),u(IS_IN_Z,%2))
+	)
+
+&IS_IN_X Dynamic Exit Parent=
+	and(
+		lte(%0,get(%va/MAXX)),
+		gte(%0,get(%va/MINX))	
+	)
+
+&IS_IN_Y Dynamic Exit Parent=
+	and(
+		lte(%0,get(%va/MAXY)),
+		gte(%0,get(%va/MINY))
+	)
+
+&IS_IN_Z Dynamic Exit Parent=
+	and(
+		lte(%0,get(%va/MAXZ)),
+		gte(%0,get(%va/MINZ))
+	)
+
+@@ These three are generic, actual exits modify the values with add/sub
+
+&XNEW Dynamic Exit Parent=get(%0/XCOOR)
+&YNEW Dynamic Exit Parent=get(%0/YCOOR)
+&ZNEW Dynamic Exit Parent=get(%0/ZCOOR)
+
+@@ Compute the new location, if wrapping is enabled and relevant.
+
+&DXNEW Dynamic Exit Parent=
+	switch(get(%va/X-LIMITS),
+		2,switch(1,
+			gt(%0,get(%va/MAXX)),get(%va/MINX),
+			lt(%0,get(%va/MINX)),get(%va/MAXX),
+			%0
+		),
+		%0
+	)
+
+&DYNEW Dynamic Exit Parent=
+	switch(get(%va/Y-LIMITS),
+		2,switch(1,
+			gt(%0,get(%va/MAXY)),get(%va/MINY),
+			lt(%0,get(%va/MINY)),get(%va/MAXY),
+			%0
+		),
+		%0
+	)
+
+&DZNEW Dynamic Exit Parent=
+	switch(get(%va/Z-LIMITS),
+		2,switch(1,
+			gt(%0,get(%va/MAXZ)),get(%va/MINZ),
+			lt(%0,get(%va/MINZ)),get(%va/MAXZ),
+			%0
+		),
+		%0
+	)
+
+@@ @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@@ Do the Dynamic Thing
+@@ ~~~~~~~~~~~~~~~~~~~~
+@@ ALLOC_ROOM is responsible for the snatching of new rooms from the 
+@@ queue, if necessary. Semaphores are used on the internal loop here;
+@@ when the Afail is called upon, it puts the commands on the semaphore 
+@@ queue and uses the Array Object as the file lock. When the Array 
+@@ Object gets @notified, one batch of waiting commands gets run. 
+
+@Afail Dynamic Exit Parent=
+	@wait %va={
+		@trigger me/
+			[setq(7,u(DXNEW,u(XNEW,%L)))]
+			[setq(8,u(DYNEW,u(YNEW,%L)))]
+			[setq(9,u(DZNEW,u(ZNEW,%L)))]
+			[switch(0,
+			u(INRANGE,%q7,%q8,%q9),DUMMY,
+			u(PASS_LOCK),DUMMY,
+			comp(get(%va/NUM-%q7.%q8.%q9),),ALLOC_ROOM,
+			TEL_TO_ROOM
+		)]=%#,%L,%N,%q7,%q8,%q9
+	}
+
+&DUMMY Dynamic Exit Parent=
+	@pemit %0=u(FAKE_FAIL,%0,%3,%4,%5);
+	@notify %va
+
+@@ This FAKE_FAIL is seen by admins trying to teleport.
+
+&FAKE_FAIL Dynamic Exit Parent=Sorry, you can't go to (%1,%2,%3).
+
+&ALLOC_ROOM Dynamic Exit Parent=
+	@VN me=first(cat(get(%va/num-%3.%4.%5),get(%va/recycle_list)));
+	&RECYCLE_LIST %va=setdiff(get(%va/RECYCLE_LIST),%vn);
+	@trigger %va/RECYCLE;
+	&num-%3.%4.%5 %va=%vn;
+	&XCOOR %vn=%3;
+	&YCOOR %vn=%4;
+	&ZCOOR %vn=%5;
+	@set %vn=FLOATING;
+	@name %vn=u(GETNAME,%3,%4,%5);
+	@desc %vn=u(GETDESC,%3,%4,%5);
+	@succ %vn=u(GETSUCC,%3,%4,%5);
+	@parent %vn=u(GETPARENT,%3,%4,%5);
+	&DARK_EXITS %vn=u(GETDARKEXITS,%3,%4,%5);
+	&BLOCKED_EXITS %vn=u(GETBLOCKEDEXITS,%3,%4,%5);
+	@pemit %0=switch(hasflag(%0,TERSE),1,,u(Succ,%0));
+	@tel %0=%vn;
+	@pemit/contents %1=%2 [u(Osucc,%0)];
+	@notify %va
+
+&TEL_TO_ROOM Dynamic Exit Parent=
+	@VN me=get(%va/num-%3.%4.%5);
+	@pemit/contents %vn=%2 [u(Odrop,%0)];
+	@pemit %0=switch(hasflag(%0,TERSE),1,,u(Succ,%0));
+	@tel %0=%vn;
+	@pemit/contents %1=%2 [u(Osucc,%0)];
+	@notify %va
+
+@@ Since we need it to run the first time through, notify the Array Object.
+
+@notify Dynamic Array Object
+
+@@ And on each startup. Also attempt to purge rooms.
+
+@Startup Dynamic Array Object=
+	@drain me;
+	@notify me;
+	@wait 1200={@dolist lattr(%!/NUM-*)={@trigger v(##)/Aleave}}
+
+@@ @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@@ Generic Attributes
+@@ ~~~~~~~~~~~~~~~~~~
+
+@@ These functions are used to grab names, descs, etc from the Array
+@@ Object. If nothing is present, they default to something silly.
+
+@@ To customize, modify whatever is inside the {}.
+@@ %0, %1 and %2 hold the X, Y, and Z coordinates.
+
+@@ A common thing to do is have an auto-name function, or even an
+@@ auto-desc, that uses a map or other form of table instead of the
+@@ array storage, and allows a more intuitive customization. If many
+@@ rooms will have the same desc, however, the use of parents to 
+@@ provide the descs will lighten the load on the server.
+
+@@ SHAMELESS PLUG: See the Dynamic Space Mapping Module add on!
+
+&GETNAME Dynamic Exit Parent=
+	default(%va/NAME-%0.%1.%2,{Dynamic Room %0 %1 %2})
+
+&GETDESC Dynamic Exit Parent=
+	default(%va/DESC-%0.%1.%2,{Default description.})
+
+&GETSUCC Dynamic Exit Parent=
+	default(%va/SUCC-%0.%1.%2,{})
+
+&GETPARENT Dynamic Exit Parent=
+	default(%va/PARENT-%0.%1.%2,{})
+
+&GETDARKEXITS Dynamic Exit Parent=
+	default(%va/DARK_EXITS-%0.%1.%2,{})
+
+&GETBLOCKEDEXITS Dynamic Exit Parent=
+	default(%va/BLOCKED_EXITS-%0.%1.%2,{})
+
+@@ @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@@ Cleanup
+@@ ~~~~~~~
+@@ Set these to point to somewhere Safe and Inaccessable. You DON'T
+@@ want people screwing with these. Do NOT put the Array Object inside
+@@ anything that will do @digging.
+
+@tel Dynamic Room Parent=me
+@tel Dynamic Exit Parent=me
+@tel Dynamic Array Object=me
+
+@@ If you aren't planning to open an exit from 0,0,0, or fix it manually, 
+@@ make sure you link or fix SOMEWHERE in the Dynamic Space, or it will
+@@ all vanish when you leave it. For safety, you might want to uncomment
+@@ the following line:
+
+@aleave here=@@
+
+@@ @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+
+@pemit me=Script Complete at [time()]
+
+@@ -----8<----CUT HERE----8<--------8<--------8<--------8<--------8<----
+
+
+@@ @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@@ HISTORY
+
+@@ 2.8
+@@  - Changed exit locks to me&!me from #0
+@@	- Made dimension-locks easier to add
+@@	- Lots of internal reorganizations of comments and config stuff
+@@	- Rewrote the whole damn exit-display stuff
+@@	- Conversion to TinyMUSH 2.2isms (NOT COMPLETE!)
+
+@@ 2.7p2
+@@	- Exit-display patch retrofit from 2.8
+@@ 2.7p1
+@@	- DE_FILTER buglet (hides all owned local exits) fixed
+@@ 2.7
+@@	- "Null rooms" added, which allow things like mazes or
+@@	  impassable terrain (or terrain passable only by certain
+@@	  types of creatures).
+@@	- use of %va, setq() and r() to minimize DB accesses
+@@	  (although that could doubtless be improved further)
+@@	- telto <x> <y> <z> admin command added
+@@	- hide/show/block/open exit commands actually error check
+@@	  their arguments now. Oooooh. Ooooh. :)
+@@	- border exits (for areas with limits) automagically hidden, 
+@@	  if desired
+
+@@ 2.6
+@@ 
+@@ 	- Descs added to exits (semi-transparency)
+@@	- Patched some silly bugs in the block/hide code
+@@	- Rooms now wipe attributes/parent upon recycling
+
+@@ 2.5
+@@   	- Startup purge of misplaced rooms added
+@@   	- Converted to MPP format
+@@   	- Room Parent created HALTED for safety
+@@   	- Added blocked and darkened exits (doc'd in header)
+@@   	- Patched DE_FILTER to handle non-dynamic exits properly
+ 
+@@ 2.4
+@@	- Sempahores added - slightly slower but MUCH more secure
+@@	- Internal allocation error protection
+@@	- Improved/added commenting all over the code
+@@	- SUCC/OSUCC/ODROP/FAIL messages redone, pros and cons
+@@	- Some internals changed to speed up the code
+@@	- Optional Map Module
+
+@@ 2.3
+@@	- Problem with room allocation patched. (Afail)
+@@	- Room recycling loophole fixed. (Aleave)
+@@	- Various typos fixed and some small code bits enhanced.
+@@	- A few new comments.
+
+@@ 2.2p1
+@@	- Problem with room allocation patched. (Afail)
+@@	- Room recycling loophole fixed. (Aleave)
+@@ 2.2
+@@	- Third dimension (Z) added.
+@@	- "Locks" on parent exits can restrict travel.
+@@	- Limits can now wrap in X, Y or Z.
+@@	- The initial room is set FLOATING.
+@@	- Parent exits are linked to something (security).
+
+@@ 2.1
+@@	- Limits can now wrap in X or Y.
+@@	- The initial room is set FLOATING
+@@	- Parent exits are linked to something (security)
+
+

@@ -1,0 +1,1514 @@
+@@ @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@@ A TinyMUSH Mailer
+@@ Version: 1.0
+@@
+@@ By Joshua Bell, jsbell@acs.ucalgary.ca
+@@ Developed for NarniaMUSH, dobest.lib.virginia.edu 6250
+@@
+@@ Requires: TinyMUSH 2.2 or later
+@@           mpp Version 1.1
+@@
+@@ Formatted help text is at the end of this script
+
+@@ @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@@ CHANGES: 1.0	- Release (14 April 1995)
+
+@@ @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@@ MANIFEST:
+@@
+@@ 1 script:
+@@ 	- Use of @fo me={} for setting dbref# attributes
+@@	- 2 objects
+@@		Mail Commands - Mailer
+@@		Mail Subroutines - Delivery routines & functions
+@@
+@@ Requires extraction with mpp (version 1.1)
+@@ Source at: <URL:ftp://caisr2.casir.cwru.edu/pub/mush/mushcode/mpp.c>
+
+@@ @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@@ INSTRUCTIONS:
+@@
+@@ For this mailer to work, the command: @attribute/access
+@@ *must* be reconfigured to allow wizards to run it. To do this:
+@@
+@@ Have your God character execute:
+@@              @admin access=@attribute/access wizard
+@@
+@@ And in the server config files, add the line:
+@@              access @attribute/access wizard
+
+@@ @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@@ Mailer Syntax
+@@
+@@ <recipients>	= Name [, Name] ...
+@@
+@@ <message range> = {all|new|old|<number list>}
+@@ <number list>	= # [[,] #] [[,] # - #] ...
+@@ 		eg. 1, 5, 6-10
+@@
+@@ +mail <recipients>=<subject>	- Send mail to list of recipients
+@@ +forward <recipients>=#	- Forward mail to recipients
+@@ +reply #			- Reply to message, include message
+@@ +group #			- Reply to sender & recipients of message
+@@ +re #			- Reply to message, don't include
+@@ +note <subject>=<contents>	- Message to yourself
+@@ +read <message range>	- Read messages (mark as read)
+@@ +clear <message range>	- Erase messages
+@@ +read			- Count of read/unread messages
+@@ +skim [<message range>]	- View date/sender/subjects
+@@ +unread <message range>	- Mark messages as unread
+@@ +autoforward[+|-] <recipients>	- Auto-forward all incoming messages
+@@ +autoforward			- Check your forwarding list
+@@ +unforward                   - Cancel autoforwarding
+
+@@ @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@@ Composer Commands
+@@
+@@ -				- See quick summary of following
+@@ -<message text>		- Append text to message
+@@ +send			- Finish composing and send
+@@ +proof			- Review message being composed
+@@ +toss			- Junk message being composed
+@@ +edit */*			- Edit message being composed
+@@ +subject <subject>		- Change subject of letter
+@@ +to[+|-] <recipients>	- Change/add/remove To: recipients
+@@ +cc[+|-] <recipients>	- Change/add/remove Cc: recipients
+@@ +bcc[+|-] <recipients>	- Change/add/remove Bcc: recipients
+@@ +include <obj>/<attr>	- Include some attribute
+
+@@ @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@@ Customizable Attributes:
+@@
+@@ &MAIL-CONTINUE me= %b | %r | %r%r		- Continuation character
+@@ &MAIL-PICKUP me=%0 sends off a message.	- Message seen when you send
+@@ &MAIL-DELIVERY me=%0 receives a message.	- Message seen when sent to
+@@ &SIGNATURE me=--%rTash, Deity at Large	- Signature for messages
+@@ &MAIL-HAVEN here=1				- No messages seen in that loc.
+
+@@ Undocumented:
+@@
+@@ &MAIL-START me=Tash starts a mail message.   - When you start a message
+@@ &MAIL-WRITE me=Tash adds to his message.     - When you add more
+
+@@ @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@@ START OF SCRIPT
+@@ @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+
+@@ @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@@ Flags and setup
+
+@@ Must be either WIZARD or owned by a wizard and set INHERIT
+
+@@ @set Mail Commands=WIZARD
+@@ @set Mail Subroutines=WIZARD
+
+@set Mail Commands=INHERIT
+@set Mail Subroutines=INHERIT
+
+@set Mail Commands=QUIET
+@set Mail Subroutines=QUIET
+
+@fo me=@vc Mail Subroutines=[num(Mail Commands)]
+@fo me=@vs Mail Subroutines=[num(mail Subroutines)]
+@fo me=@vc Mail Commands=[num(Mail Commands)]
+@fo me=@vs Mail Commands=[num(mail Subroutines)]
+
+@vf Mail Commands=dummy
+@set Mail Commands/vf=NO_COMMAND
+
+@@ @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@@ Reserved Attributes:
+
+@@ E-COMPOSING		- 1 or blank, whether player is composing or not
+@@ E-TEXT		- Text of message being composed
+@@ E-TO			- Recipient list of message
+@@ E-CC			- CC list
+@@ E-BCC		- BCC list
+@@ E-SUBJ		- Subject of the message
+@@ E-TRIG		- Subroutine to trigger on completion
+@@ E-SECS		- Time stamp for the message initiation
+@@ M-<digits>		- Hold messages on player
+
+@dolist E-COMPOSING E-TEXT E-TO E-CC E-BCC E-SUBJ E-TRIG E-SECS=
+	@attribute/access ##=wizard;
+	@attribute/access ##=hidden
+
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@@ You might want to configure this:
+
+&FN_DATE Mail Sub=time()
+
+&ISNT_PLAYER Mail Com=[comp(type(%#),PLAYER)]
+@Lock/Use Mail Com=ISNT_PLAYER/0
+
+@drain Mail Com
+@drain Mail Sub
+@notify Mail Com
+@notify Mail Sub
+@Startup Mail Sub=@drain me;@notify me
+@Startup Mail Com=@drain me;@notify me
+
+@@ @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@@ Number parsing functions
+
+&FN_NP1 Mail Sub=edit(edit(edit(edit(%0,\,,|),%b,|),|-,-),-|,-)
+&FN_NRANGE Mail Sub=extract(lnum(add(%1,1)),add(%0,1),add(sub(%1,%0),1))
+&FN_NUMPARSE Mail Sub=parse(u(%vs/FN_NP1,%0),switch(1,strmatch(##,*-*),switch(1,eq(strlen(before(##,-)),0),#-2,eq(strlen(after(##,-)),0),#-2,not(isnum(before(##,-))),#-1,not(isnum(after(##,-))),#-1,gt(before(##,-),after(##,-)),#-2,u(%vs/FN_NRANGE,before(##,-),after(##,-))),not(isnum(##)),#-1,##),|)
+&FN_RANGEPARSE Mail Sub=[setq(9,u(%vs/FN_NUMPARSE,s(%0)))][switch(%q9,*#-1*,#-1 NOT A NUMBER,*#-2*,#-2 BAD RANGE,sort(setunion(%q9,),n))]
+
+@@ @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@@ Name parsing functions
+
+&FN_NAMEPARSE Mail Sub=s(parse(%0,switch(num(*##),#-1,,num(*##)),\,))
+&FN_BADNPARSE Mail Sub=edit(edit(s(parse(%0,switch(num(*##),#-1,##|),\,)),|%b,\,%b),|,)
+
+@@ @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@@ @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@@ Mailer
+
+&CMD_MAIL Mail Com=$+mail *=*:
+	@wait me=
+		{
+		@switch/first 1=
+		get(%#/E-COMPOSING),
+			{
+		@pemit %#=You are already composing a mail message!%r
+			Type '-' on a line by itself for an overview of the composer commands.
+			}
+		,strmatch(%1,),
+			{
+			@pemit %#=You must supply a subject.
+			}
+		,and(strlen(u(%vs/FN_NAMEPARSE,%0)),strlen(u(%vs/FN_BADNPARSE,%0))),
+			{
+			@pemit %#=These names were not recognized: [u(%vs/FN_BADNPARSE,%0)]%r[u(%vs/DAT_EDHELP)];
+			&E-COMPOSING %#=1;
+			&E-TEXT %#;
+			&E-SUBJ %#=mid(%1,0,40);
+			&E-TO %#=u(%vs/FN_NAMEPARSE,%0);
+			&E-CC %#;
+			&E-BCC %#;
+			&E-TRIG %#=SUB_PICKUP;
+			&E-SECS %#=secs();
+	@switch get(%#/MAIL-START)=,,{@pemit/contents %l=get(%#/MAIL-START)}
+			}
+		,not(strmatch(u(%vs/FN_BADNPARSE,%0),)),
+			{
+			@pemit %#=
+			None of those names are recognized.
+			}
+		,
+			{
+			@pemit %#=[u(%vs/DAT_EDHELP)]
+				[switch(1,gt(strlen(%1),40),%r%rSubject truncated at 40 characters.)];
+			&E-COMPOSING %#=1;
+			&E-TEXT %#;
+			&E-SUBJ %#=mid(%1,0,40);
+			&E-TO %#=u(%vs/FN_NAMEPARSE,%0);
+			&E-CC %#;
+			&E-BCC %#;
+			&E-TRIG %#=SUB_PICKUP;
+			&E-SECS %#=secs();
+	@switch get(%#/MAIL-START)=,,{@pemit/contents %l=get(%#/MAIL-START)}
+			};
+		@notify me
+		}
+
+@@ @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+
+&CMD_FORWARD Mail Com=$+forward *=*:
+	@wait me=
+		{
+		@switch/first 1=
+		get(%#/E-COMPOSING),
+			{
+		@pemit %#=You are already composing a mail message.%r
+			Type '-' on a line by itself for an overview of the composer commands.
+			}
+		,strmatch(%1,),
+			{
+			@pemit %#=You must specify the message to forward.
+			}
+		,gt(words(%1),1),
+			{
+			@pemit %#=You can only forward a single message.%r
+				Usage: +forward <recipients>=<message number>
+			}
+		,eq(words(lattr(%#/M-*)),0),
+			{
+			@pemit %#=You have no messsages to forward!
+			}
+		,lt(%1,0),
+			{
+			@pemit %#=That isn't a valid message number%r
+				Usage: +forward <recipients>=<message number>
+			}
+		,gt(%1,words(lattr(%#/M-*))),
+			{
+			@pemit %#=You don't have that many messages! \(Total: [words(lattr(%#/M-*))]\)
+			}
+		,and(strlen(u(%vs/FN_NAMEPARSE,%0)),strlen(u(%vs/FN_BADNPARSE,%0))),
+			{
+			@pemit %#=These names were not recognized: [u(%vs/FN_BADNPARSE,%0)]%r[u(%vs/DAT_EDHELP)];
+			@vt me=get(%#/[extract(lattr(%#/M-*),%1,1)]);
+			&E-COMPOSING %#=1;
+			&E-TEXT %#=
+				On [u(%vs/FN_HEADER,%vt,Date:)],%b
+				[u(%vs/FN_HEADER,%vt,From:)] wrote:%r
+				[repeat(.,70)]%r
+				[after(%vt,%r%r)]%r
+				[repeat(.,70)][switch(get_eval(%#/MAIL-CONTINUE),*\%r*,,%r)];
+			&E-SUBJ %#=[setq(0,u(%vs/FN_HEADER,%vt,Subject:))]
+				[switch(%q0,*\(fwd\)*,%q0,%q0 \(fwd\))];
+			&E-TO %#=u(%vs/FN_NAMEPARSE,%0);
+			&E-CC %#;
+			&E-BCC %#;
+			&E-TRIG %#=SUB_PICKUP;
+			&E-SECS %#=secs();
+			@vt me
+			}
+		,not(strmatch(u(%vs/FN_BADNPARSE,%0),)),
+			{
+			@pemit %#=
+			None of those names are recognized.
+			}
+		,
+			{
+			@pemit %#=[u(%vs/DAT_EDHELP)];
+			@vt me=get(%#/[extract(lattr(%#/M-*),%1,1)]);
+			&E-COMPOSING %#=1;
+			&E-TEXT %#=
+				On [u(%vs/FN_HEADER,%vt,Date:)],%b
+				[u(%vs/FN_HEADER,%vt,From:)] wrote:%r
+				[repeat(.,70)]%r
+				[after(%vt,%r%r)]%r
+				[repeat(.,70)][switch(get_eval(%#/MAIL-CONTINUE),*\%r*,,%r)];
+			&E-SUBJ %#=[setq(0,u(%vs/FN_HEADER,%vt,Subject:))]
+				[switch(%q0,*\(fwd\)*,%q0,%q0 \(fwd\))];
+			&E-TO %#=u(%vs/FN_NAMEPARSE,%0);
+			&E-CC %#;
+			&E-BCC %#;
+			&E-TRIG %#=SUB_PICKUP;
+			&E-SECS %#=secs();
+			@vt me
+			};
+		@notify me
+		}
+
+@@ @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+
+&CMD_REPLY Mail Com=$+reply *:
+	@wait me=
+		{
+		@switch/first 1=
+		get(%#/E-COMPOSING),
+			{
+		@pemit %#=You are already composing a mail message.%r
+			Type '-' on a line by itself for an overview of the composer commands.
+			}
+		,strmatch(%0,),
+			{
+			@pemit %#=You must specify the message to reply to.
+			}
+		,gt(words(%0),1),
+			{
+			@pemit %#=You can only reply to a single message.%r
+				Usage: +reply <message number>
+			}
+		,eq(words(lattr(%#/M-*)),0),
+			{
+			@pemit %#=You have no messsages to reply to!
+			}
+		,lt(%0,0),
+			{
+			@pemit %#=That isn't a valid message number%r
+				Usage: +reply <message number>
+			}
+		,gt(%0,words(lattr(%#/M-*))),
+			{
+			@pemit %#=You don't have that many messages! \(Total: [words(lattr(%#/M-*))]\)
+			}
+		,strmatch(num(*[u(%vs/FN_HEADER,get(%#/[extract(lattr(%#/M-*),%0,1)]),From:)]),#-*),
+			{
+			@pemit %#=It appears that the author of that message,
+			%b"[u(%vs/FN_HEADER,get(%#/[extract(lattr(%#/M-*),%0,1)]),From:)]",
+			%bno longer exists!
+			}
+		,
+			{
+			@pemit %#=[u(%vs/DAT_EDHELP)];
+			@vt me=get(%#/[extract(lattr(%#/M-*),%0,1)]);
+			&E-COMPOSING %#=1;
+			&E-TEXT %#=
+				On [u(%vs/FN_HEADER,%vt,Date:)],%b
+				[u(%vs/FN_HEADER,%vt,From:)] wrote:%r
+				[repeat(.,70)]%r
+				[after(%vt,%r%r)]%r
+				[repeat(.,70)][switch(get_eval(%#/MAIL-CONTINUE),*\%r*,,%r)];
+			&E-SUBJ %#=
+		[setq(0,u(%vs/FN_HEADER,%vt,Subject:))]
+		[switch(%q0,Re: *,%q0,Re: [u(%vs/FN_HEADER,%vt,Subject:)])];
+			&E-TO %#=num(*[u(%vs/FN_HEADER,%vt,From:)]);
+			&E-CC %#;
+			&E-BCC %#;
+			&E-TRIG %#=SUB_PICKUP;
+			&E-SECS %#=secs();
+			@vt me
+			};
+		@notify me
+		}
+
+@@ @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+
+&CMD_RE Mail Com=$+re *:
+	@wait me=
+		{
+		@switch/first 1=
+		get(%#/E-COMPOSING),
+			{
+		@pemit %#=You are already composing a mail message.%r
+			Type '-' on a line by itself for an overview of the composer commands.
+			}
+		,strmatch(%0,),
+			{
+			@pemit %#=You must specify the message to reply to.
+			}
+		,gt(words(%0),1),
+			{
+			@pemit %#=You can only reply to a single message.%r
+				Usage: +re <message number>
+			}
+		,eq(words(lattr(%#/M-*)),0),
+			{
+			@pemit %#=You have no messsages to reply to!
+			}
+		,lt(%0,0),
+			{
+			@pemit %#=That isn't a valid message number%r
+				Usage: +re <message number>
+			}
+		,gt(%0,words(lattr(%#/M-*))),
+			{
+			@pemit %#=You don't have that many messages! \(Total: [words(lattr(%#/M-*))]\)
+			}
+		,strmatch(num(*[u(%vs/FN_HEADER,get(%#/[extract(lattr(%#/M-*),%0,1)]),From:)]),#-*),
+			{
+			@pemit %#=It appears that the author of that message,
+			%b"[u(%vs/FN_HEADER,get(%#/[extract(lattr(%#/M-*),%0,1)]),From:)]",
+			%bno longer exists!
+			}
+		,
+			{
+			@pemit %#=[u(%vs/DAT_EDHELP)];
+			@vt me=get(%#/[extract(lattr(%#/M-*),%0,1)]);
+			&E-COMPOSING %#=1;
+			&E-TEXT %#;
+			&E-SUBJ %#=
+		[setq(0,u(%vs/FN_HEADER,%vt,Subject:))]
+		[switch(%q0,Re: *,%q0,Re: [u(%vs/FN_HEADER,%vt,Subject:)])];
+			&E-TO %#=num(*[u(%vs/FN_HEADER,%vt,From:)]);
+			&E-CC %#;
+			&E-BCC %#;
+			&E-TRIG %#=SUB_PICKUP;
+			&E-SECS %#=secs();
+			@vt me
+			};
+		@notify me
+		}
+
+@@ @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+
+&CMD_GROUP Mail Com=$+group *:
+	@wait me=
+		{
+		@switch/first 1=
+		get(%#/E-COMPOSING),
+			{
+		@pemit %#=You are already composing a mail message.%r
+			Type '-' on a line by itself for an overview of the composer commands.
+			}
+		,strmatch(%0,),
+			{
+			@pemit %#=You must specify the message to reply to.
+			}
+		,gt(words(%0),1),
+			{
+			@pemit %#=You can only reply to a single message.%r
+				Usage: +re <message number>
+			}
+		,eq(words(lattr(%#/M-*)),0),
+			{
+			@pemit %#=You have no messsages to reply to!
+			}
+		,lt(%0,0),
+			{
+			@pemit %#=That isn't a valid message number%r
+				Usage: +re <message number>
+			}
+		,gt(%0,words(lattr(%#/M-*))),
+			{
+			@pemit %#=You don't have that many messages! \(Total: [words(lattr(%#/M-*))]\)
+			}
+		,not(strmatch(u(%vs/FN_BADNPARSE,edit(
+			[u(%vs/FN_HEADER,get(%#/[extract(lattr(%#/M-*),%0,1)]),From:)]%b%b
+			[u(%vs/FN_HEADER,get(%#/[extract(lattr(%#/M-*),%0,1)]),Cc:)]%b%b
+			[u(%vs/FN_HEADER,get(%#/[extract(lattr(%#/M-*),%0,1)]),To:)],%b%b,\,)
+			),)),
+			{
+			@pemit %#=The following recipients no longer exist:%b
+				[u(%vs/FN_BADNPARSE,edit(
+				[u(%vs/FN_HEADER,get(%#/[extract(lattr(%#/M-*),%0,1)]),From:)]%b%b
+				[u(%vs/FN_HEADER,get(%#/[extract(lattr(%#/M-*),%0,1)]),Cc:)]%b%b
+				[u(%vs/FN_HEADER,get(%#/[extract(lattr(%#/M-*),%0,1)]),To:)],%b%b,\,)
+				)]
+			}
+		,
+			{
+			@pemit %#=[u(%vs/DAT_EDHELP)];
+			@vt me=get(%#/[extract(lattr(%#/M-*),%0,1)]);
+			&E-COMPOSING %#=1;
+			&E-TEXT %#;
+			&E-SUBJ %#=
+		[setq(0,u(%vs/FN_HEADER,%vt,Subject:))]
+		[switch(%q0,Re: *,%q0,Re: [u(%vs/FN_HEADER,%vt,Subject:)])];
+			&E-TO %#=[setdiff(u(%vs/FN_NAMEPARSE,edit(
+				[u(%vs/FN_HEADER,%vt,From:)]%b%b
+				[u(%vs/FN_HEADER,%vt,Cc:)]%b%b
+				[u(%vs/FN_HEADER,%vt,To:)],%b%b,\,)
+				),%#)];
+			&E-CC %#;
+			&E-BCC %#;
+			&E-TRIG %#=SUB_PICKUP;
+			&E-SECS %#=secs();
+			@vt me
+			};
+		@notify me
+		}
+
+@@ @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+
+&CMD_NOTE Mail Com=$+note *=*:
+	@switch/first 1=
+	strmatch(%0,),
+		{
+		@pemit %#=You must supply a subject.
+		}
+	,strmatch(%1,),
+		{
+		@pemit %#=
+	You must supply a message! \(Usage: +note <subject>=<message>\)
+		}
+	,
+		{
+		@trigger %vs/SUB_DELIVER=
+			%#,%n,NOTE: [mid(%0,0,40)],%n,,,u(%vs/FN_DATE),
+			%1,,You send a note to yourself.
+			[switch(1,gt(strlen(%0),40),%r\(Subject truncated at 40 characters.\))];
+		}
+
+@@ @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+
+&FN_STRIPHEADER Mail Sub=[setq(0,before(%0,%r%r))]
+	[before(%q0,%1)][after(after(%q0,%1),%r)]
+	%r%r
+	[after(%0,%r%r)]
+
+&FN_HEADER Mail Sub=before(after(before(%0,%r%r),%1%b),%r)
+
+&FN_SKIM_FORMAT Mail Sub=[setq(0,get(%0/%1))]
+	[ljust(mid(edit(u(%vs/FN_HEADER,%q0,Status:),R,),0,2),2)]%b
+	[rjust(member(lattr(%0/M-*),%1),3)].%b
+	[ljust(mid(u(%vs/FN_HEADER,%q0,From:),0,16),16)]%b
+	[ljust(mid(u(%vs/FN_HEADER,%q0,Subject:),0,35),35)]%b
+	[rjust(mid(u(%vs/FN_HEADER,%q0,Date:),4,12),12)]
+
+&CMD_SKIM Mail Com=$+skim*:
+	@switch/first 1=
+	not(words(lattr(%#/M-*))),
+		{
+		@pemit %#=You have no mail. [switch(get(%#/MAIL-FORWARD),,,\(Your mail is forwarded.\))]
+		}
+	,or(strmatch(%0,),strmatch(%0,*all)),
+		{
+		@pemit %#=[setq(0,words(lattr(%#/M-*)))]
+			You have %q0 message[switch(%q0,1,,s)].
+				[setq(0,strlen(edit(iter(lattr(%#/M-*),switch(u(%vs/FN_HEADER,get(%#/##),Status:),N*,1)),%b,)))]
+			[switch(%q0,0,,%b\(%q0 new\))]
+			[switch(get(%#/MAIL-FORWARD),,,%b\(Your mail is forwarded.\))]%r
+			[repeat(-,73)]
+			[iter(lattr(%#/M-*),%r
+				[u(%vs/FN_SKIM_FORMAT,%#,##)]
+			)]
+		}
+	,and(strmatch(%0,*old),strmatch(iter(lattr(%#/M-*),u(%vs/FN_HEADER,get(%#/##),Status:)),*N*)),
+		{
+		@pemit %#=You have no unread messages.
+		}
+	,strmatch(%0,*new),
+		{
+		@pemit %#=[setq(0,words(lattr(%#/M-*)))]
+			You have %q0 message[switch(%q0,1,,s)].
+				[setq(0,strlen(edit(iter(lattr(%#/M-*),switch(u(%vs/FN_HEADER,get(%#/##),Status:),N*,1)),%b,)))]
+			[switch(%q0,0,,%b\(%q0 new\))]
+			[switch(get(%#/MAIL-FORWARD),,,%b\(Your mail is forwarded.\))]%r
+			[repeat(-,73)]
+			[iter(iter(lattr(%#/M-*),switch(u(%vs/FN_HEADER,get(%#/##),Status:),N*,##)),%r
+				[u(%vs/FN_SKIM_FORMAT,%#,##)]
+			)]
+		}
+	,and(strmatch(%0,*old),not(strmatch(iter(lattr(%#/M-*),u(%vs/FN_HEADER,get(%#/##),Status:)),*R*))),
+		{
+		@pemit %#=You have no old messages.
+		}
+	,strmatch(%0,*old),
+		{
+		@pemit %#=[setq(0,words(lattr(%#/M-*)))]
+			You have %q0 message[switch(%q0,1,,s)].
+				[setq(0,strlen(edit(iter(lattr(%#/M-*),switch(u(%vs/FN_HEADER,get(%#/##),Status:),N*,1)),%b,)))]
+			[switch(%q0,0,,%b\(%q0 new\))]
+			[switch(get(%#/MAIL-FORWARD),,,%b\(Your mail is forwarded.\))]%r
+			[repeat(-,73)]
+			[iter(iter(lattr(%#/M-*),switch(u(%vs/FN_HEADER,get(%#/##),Status:),R*,##)),%r
+				[u(%vs/FN_SKIM_FORMAT,%#,##)]
+			)]
+		}
+	,strmatch(u(%vs/FN_RANGEPARSE,%0),#-*),
+		{
+		@pemit %#=u(%vs/DAT_RANGE_EX)
+		}
+	,strmatch(setinter(u(%vs/FN_RANGEPARSE,%0),rest(lnum(add(1,words(lattr(%#/M-*)))))),),
+		{
+		@pemit %#=
+			No [switch(words(edit(%0,-,%b)),1,
+				message with that number.,
+				messages with those numbers.
+			)]
+		}
+	,
+		{
+		@pemit %#=[setq(0,words(lattr(%#/M-*)))]
+			You have %q0 message[switch(%q0,1,,s)].
+				[setq(0,strlen(edit(iter(lattr(%#/M-*),switch(u(%vs/FN_HEADER,get(%#/##),Status:),N*,1)),%b,)))]
+			[switch(%q0,0,,%b\(%q0 new\))]
+			[switch(get(%#/MAIL-FORWARD),,,%b\(Your mail is forwarded.\))]%r
+			[repeat(-,73)]
+
+			[iter(sort(setinter(u(%vs/FN_RANGEPARSE,%0),rest(lnum(add(1,words(lattr(%#/M-*)))))),n),
+				[u(%vs/FN_SKIM_FORMAT,%#,extract(lattr(%#/M-*),##,1))]
+			)]
+		}
+
+@@ @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+
+&CMD_READ Mail Com=$+read*:
+	@switch/first 1=
+	not(words(lattr(%#/M-*))),
+		{
+		@pemit %#=You have no mail. [switch(get(%#/MAIL-FORWARD),,,\(Your mail is forwarded.\))]
+		}
+	,strmatch(%0,),
+		{
+		@pemit %#=[setq(0,words(lattr(%#/M-*)))]
+			You have %q0 message[switch(%q0,1,,s)].
+			[setq(0,strlen(edit(iter(lattr(%#/M-*),switch(u(%vs/FN_HEADER,get(%#/##),Status:),N*,1)),%b,)))]
+			[switch(%q0,0,,%b\(%q0 new\))]
+			[switch(get(%#/MAIL-FORWARD),,,%b\(Your mail is forwarded.\))]
+		}
+	,strmatch(%0,*all),
+		{
+		@dolist lattr(%#/M-*)=
+			{@pemit %#=[repeat(-,73)]%rMessage [member(lattr(%#/M-*),##)].%b%b%b[get(%#/##)]};
+		@wait 0={@pemit %#=[repeat(-,73)]};
+		@wait 0={@edit %#/M-*={Status: N},{Status: R}}
+		}
+	,and(strmatch(%0,*new),not(strmatch(iter(lattr(%#/M-*),u(%vs/FN_HEADER,get(%#/##),Status:)),*N*))),
+		{
+		@pemit %#=You have no unread messages.
+		}
+	,strmatch(%0,*new),
+		{
+		@dolist iter(lattr(%#/M-*),switch(u(%vs/FN_HEADER,get(%#/##),Status:),N*,##))=
+			{@pemit %#=[repeat(-,73)]%rMessage [member(lattr(%#/M-*),##)].%b%b%b[get(%#/##)]};
+		@wait 0={@pemit %#=[repeat(-,73)]};
+			@wait 0={@edit %#/M-*={Status: N},{Status: R}}
+		}
+	,and(strmatch(%0,*old),not(strmatch(iter(lattr(%#/M-*),u(%vs/FN_HEADER,get(%#/##),Status:)),*R*))),
+		{
+		@pemit %#=You have no old messages.
+		}
+	,strmatch(%0,*old),
+		{
+		@dolist iter(lattr(%#/M-*),switch(u(%vs/FN_HEADER,get(%#/##),Status:),R*,##))=
+			{@pemit %#=[repeat(-,73)]%rMessage [member(lattr(%#/M-*),##)].%b%b%b[get(%#/##)]};
+		@wait 0={@pemit %#=[repeat(-,73)]}
+		}
+	,strmatch(u(%vs/FN_RANGEPARSE,%0),#-*),
+		{
+		@pemit %#=u(%vs/DAT_RANGE_EX)
+		}
+	,strmatch(setinter(u(%vs/FN_RANGEPARSE,%0),rest(lnum(add(1,words(lattr(%#/M-*)))))),),
+		{
+		@pemit %#=
+			No [switch(words(edit(%0,-,%b)),1,
+				message with that number.,
+				messages with those numbers.
+			)]
+		}
+	,
+		{
+		@dolist sort(setinter(u(%vs/FN_RANGEPARSE,%0),rest(lnum(add(1,words(lattr(%#/M-*)))))),n)=
+			{
+			@pemit %#=[repeat(-,73)]%rMessage ##.%b%b%b[get(%#/[extract(lattr(%#/M-*),##,1)])];
+			@edit %#/[extract(lattr(%#/M-*),##,1)]={Status: N},{Status: R}
+			};
+		@wait 0={@pemit %#=[repeat(-,73)]}
+		}
+
+@@ @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+
+&CMD_UNREAD Mail Com=$+unread *:
+	@switch/first 1=
+	not(words(lattr(%#/M-*))),
+		{
+		@pemit %#=You have no mail. [switch(get(%#/MAIL-FORWARD),,,\(Your mail is forwarded.\))]
+		}
+	,strmatch(%0,*all),
+		{
+		@edit %#/M-*={Status: R},{Status: N};
+		@pemit %#=All messages marked as unread.
+		}
+	,strmatch(%0,*new),
+		{
+		@pemit %#=New messages *are* unread!
+		}
+	,and(strmatch(%0,*old),not(strmatch(iter(lattr(%#/M-*),u(%vs/FN_HEADER,get(%#/##),Status:)),*R*))),
+		{
+		@pemit %#=You have no old messages.
+		}
+	,strmatch(%0,*old),
+		{
+		@edit %#/M-*={Status: R},{Status: N};
+		@pemit %#=All old messages marked as unread.
+		}
+	,strmatch(u(%vs/FN_RANGEPARSE,%0),#-*),
+		{
+		@pemit %#=u(%vs/DAT_RANGE_EX)
+		}
+	,strmatch(setinter(u(%vs/FN_RANGEPARSE,%0),rest(lnum(add(1,words(lattr(%#/M-*)))))),),
+		{
+		@pemit %#=
+			No [switch(words(edit(%0,-,%b)),1,
+				message with that number.,
+				messages with those numbers.
+			)]
+		}
+	,
+		{
+		@dolist sort(setinter(u(%vs/FN_RANGEPARSE,%0),rest(lnum(add(1,words(lattr(%#/M-*)))))),n)=
+			{
+			@edit %#/[extract(lattr(%#/M-*),##,1)]={Status: R},{Status: N}
+			};
+		@pemit %#=
+			[setq(0,sort(setinter(u(%vs/FN_RANGEPARSE,%0),rest(lnum(add(1,words(lattr(%#/M-*)))))),n))]
+			Messages \(%q0\) marked as unread.;
+		}
+
+@@ @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+
+&CMD_CLEAR Mail Com=$+clear*:
+	@wait me={
+		@switch/first 1=
+		not(words(lattr(%#/M-*))),
+			{
+			@pemit %#=You have no mail. [switch(get(%#/MAIL-FORWARD),,,\(Your mail is forwarded.\))]
+			}
+		,strmatch(%0,),
+			{
+			@pemit %#=Usage: +clear [ <message range> | all | old | new ]
+			}
+		,strmatch(%0,*all),
+			{
+			@dolist lattr(%#/M-*)={&## %#};
+			@pemit %#=All messages cleared.
+			}
+		,and(strmatch(%0,*new),not(strmatch(iter(lattr(%#/M-*),u(%vs/FN_HEADER,get(%#/##),Status:)),*N*))),
+			{
+			@pemit %#=You have no unread messages.
+			}
+		,strmatch(%0,*new),
+			{
+			@dolist iter(lattr(%#/M-*),switch(u(%vs/FN_HEADER,get(%#/##),Status:),N*,##))={&## %#};
+			@pemit %#=New messages cleared.
+			}
+		,and(strmatch(%0,*old),not(strmatch(iter(lattr(%#/M-*),u(%vs/FN_HEADER,get(%#/##),Status:)),*R*))),
+			{
+			@pemit %#=You have no old messages.
+			}
+		,strmatch(%0,*old),
+			{
+			@dolist iter(lattr(%#/M-*),switch(u(%vs/FN_HEADER,get(%#/##),Status:),R*,##))={&## %#};
+			@pemit %#=Old messages cleared.
+			}
+	,strmatch(u(%vs/FN_RANGEPARSE,%0),#-*),
+		{
+		@pemit %#=u(%vs/DAT_RANGE_EX)
+		}
+		,strmatch(setinter(u(%vs/FN_RANGEPARSE,%0),rest(lnum(add(1,words(lattr(%#/M-*)))))),),
+			{
+			@pemit %#=
+				No [switch(words(edit(%0,-,%b)),1,
+					message with that number.,
+					messages with those numbers.
+				)]
+			}
+		,
+			{
+			@pemit %#=
+				[setq(0,sort(setinter(u(%vs/FN_RANGEPARSE,%0),rest(lnum(add(1,words(lattr(%#/M-*)))))),n))]
+				Messages \(%q0\) cleared.;
+			@dolist iter(
+					setinter(u(%vs/FN_RANGEPARSE,%0),rest(lnum(add(1,words(lattr(%#/M-*)))))),
+					extract(lattr(%#/M-*),##,1)
+				)={&## %#}
+			};
+		@notify me
+	}
+
+
+@@ @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+
+&CMD_AUTOFORWARD-check Mail Com=$+autoforward:
+	@pemit %#=switch(get(%#/MAIL-FORWARD),
+		,Your mail is not forwarded.,
+		Your messages are forwarded to: [iter(get(%#/MAIL-FORWARD),name(##)%b)]
+	)
+
+&CMD_UNFORWARD Mail Com=$+unforward:
+	@pemit %#=switch(get(%#/MAIL-FORWARD),
+		,Your mail is not forwarded.,
+		Your messages will no longer be forwarded.
+	);
+	&MAIL-FORWARD %#
+
+&CMD_AUTOFORWARD Mail Com=$+autoforward *:
+	@vf me=u(%vs/FN_BADNPARSE,%0);
+	&MAIL-FORWARD %#=switch(%vf,
+		,u(%vs/FN_NAMEPARSE,%0),
+		get(%#/MAIL-FORWARD)
+	);
+	@pemit %#=switch(%vf,
+		,Your messages will now be forwarded to: [iter(get(%#/MAIL-FORWARD),name(##)%b)],
+		These names are not recognized: %vf%r%bYour autoforward list has been left unchanged.
+	)
+
+&CMD_AUTOFORWARD-add  Mail Com=$+autoforward+ *:
+	@vf me=u(%vs/FN_BADNPARSE,%0);
+	&MAIL-FORWARD %#=switch(%vf,
+		,setunion(get(%#/MAIL-FORWARD),u(%vs/FN_NAMEPARSE,%0)),
+		get(%#/MAIL-FORWARD)
+		);
+	@pemit %#=switch(%vf,
+		,Your messages will now be forwarded to: [iter(get(%#/MAIL-FORWARD),name(##)%b)],
+		These names are not recognized: %vf%r%bYour autoforward list has been left unchanged.
+	)
+
+&CMD_AUTOFORWARD-sub  Mail Com=$+autoforward- *:
+	@vf me=u(%vs/FN_BADNPARSE,%0);
+	&MAIL-FORWARD %#=switch(%vf,
+		,setdiff(get(%#/MAIL-FORWARD),u(%vs/FN_NAMEPARSE,%0)),
+		get(%#/MAIL-FORWARD)
+		);
+	@pemit %#=switch(%vf,
+		,Your messages will now be forwarded to: [iter(get(%#/MAIL-FORWARD),name(##)%b)],
+		These names are not recognized: %vf%r%bYour autoforward list has been left unchanged.
+	)
+
+
+@@ @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@@ @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@@ Composer
+
+@@ Note length is approximate: dbref -> name translations not counted,
+@@ and attribs like E-SECS and are added in but not saved.
+
+&FN_LENGTH_WARN Mail Sub=
+	[setq(0,strlen(
+		[get(%1/SIGNATURE)][iter(lattr(%1/E-*),get(%1/##)%r)]
+	))]
+	[switch(1,
+	gte(%q0,3950),
+		%0%rWARNING: +mail message has exceeded maximum length.,
+	gte(%q0,3800),
+		%0%rWARNING: +mail message near maximum length.,
+	gte(%q0,3500),
+		%0%rWARNING: +mail message approaching maximum length,
+	%0
+	)]
+
+@@ @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+
+&CMD_COMPOSE_-add    Mail Com=$-*:
+	@vf me=switch(0,
+		strlen(get(%#/E-COMPOSING)),1,
+		strlen(%0),2,
+		0);
+	&E-TEXT %#=[get(%#/E-TEXT)]
+		[switch(%vf,0,switch(strlen(get(%#/E-TEXT)),0,%0,[u(%vs/FN_CONT)]%0))];
+	@pemit %#=switch(%vf,
+		1,You are not composing a message.,
+		2,u(%vs/DAT_EDHELP),
+		u(%vs/FN_LENGTH_WARN,,%#)
+	);
+	@switch/first 1=and(get(%#/MAIL-ADD),not(%vf)),
+		{@pemit %#=Text added.};
+	@switch/first 1=and(get(%#/MAIL-WRITE),not((%vf)),
+		{@pemit/contents %l=get(%#/MAIL-WRITE)}
+
+
+@@ Note: Make %r a system or user-configurable code (%r or %b)
+
+&FN_CONT Mail Sub=
+	switch(0,
+		strlen(get(%#/MAIL-CONTINUE)),%r,
+		get_eval(%#/MAIL-CONTINUE)
+	)
+
+@@ @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+
+&CMD_COMPOSE_INCLUDE Mail Com=$+include */*:
+	@vf me=switch(1,
+		not(strlen(get(%#/E-COMPOSING))),1,
+		strmatch(locate(%#,%0,*),#-1),2,
+		strmatch(locate(%#,%0,*),#-2),3,
+		and(not(controls(%#,locate(%#,%0,*))),not(hasflag(locate(%#,%0,*),VISUAL))),4,
+		strmatch(get(locate(%#,%0,*)/%1),),5,
+		0);
+	&E-TEXT %#=[get(%#/E-TEXT)][switch(%vf,0,[u(%vs/FN_CONT)][get(locate(%#,%0,*)/%1)])];
+	@pemit %#=switch(%vf,
+		1,You are not composing a mail message.,
+		2,I don't see that here.,
+		3,I don't know which one you mean.,
+		4,You cannot include attributes from that.,
+		5,No such attribute on object.,
+		0,u(%vs/FN_LENGTH_WARN,Appended to message text. Use +proof to review changes.,%#)
+	)
+
+
+@@ @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+
+@@ Args: <sender dbref#>,<subj>,<to>,<cc>,<bcc>,<date>,<message>,<sig>
+
+&CMD_COMPOSE_SEND    Mail Com=$+send:
+	@trigger %vs/[first(cat(get(%#/E-TRIG),ERR_NOT_COMPOSING))]=
+			%#,
+			get(%#/E-SUBJ),
+			get(%#/E-TO),
+			get(%#/E-CC),
+			get(%#/E-BCC),
+			u(%vs/FN_DATE),
+			get(%#/E-TEXT),
+			get_eval(%#/SIGNATURE);
+	&E-TEXT %#;
+	&E-SUBJ %#;
+	&E-TO %#;
+	&E-CC %#;
+	&E-BCC %#;
+	&E-TRIG %#;
+	&E-SECS %#;
+	&E-COMPOSING %#
+
+&ERR_NOT_COMPOSING Mail Sub=@pemit %0=You are not composing a mail message.
+
+@@ @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+
+&CMD_COMPOSE_PROOF   Mail Com=$+proof:
+	@pemit %#=
+		switch(0,
+			strlen(get(%#/E-COMPOSING)),You are not composing a mail message.,
+			u(%vs/FN_DISP_COMPOSE,%#)
+		)
+
+&FN_DISP_COMPOSE Mail Sub=
+	[repeat(-,73)]%r
+	[ljust(From: %n,32)]Date: [u(%vs/FN_DATE)]%r
+	Subject: [get(%0/E-SUBJ)]%r
+	To: [iter(get(%0/E-TO),name(##)%b)]%r
+	[switch(get(%0/E-CC),,,Cc: [iter(get(%0/E-CC),name(##)%b)]%r)]
+	[switch(get(%0/E-BCC),,,Bcc: [iter(get(%0/E-BCC),name(##)%b)]%r)]
+	%r
+	[get(%0/E-TEXT)]%r
+	[switch(get(%0/SIGNATURE),,,get_eval(%0/SIGNATURE)%r)]
+	[repeat(-,73)]
+
+@@ @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+
+&CMD_COMPOSE_TOSS    Mail Com=$+toss:
+	@pemit %#=
+		switch(0,
+			strlen(get(%#/E-COMPOSING)),You are not composing a mail message.,
+			Mail message abandoned.
+		);
+	&E-TEXT %#;
+	&E-SUBJ %#;
+	&E-TO %#;
+	&E-CC %#;
+	&E-BCC %#;
+	&E-TRIG %#;
+	&E-SECS %#;
+	&E-COMPOSING %#
+
+@@ @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+
+&CMD_COMPOSE_EDIT    Mail Com=$+edit */*:
+	@vf me=switch(1,
+		not(strlen(get(%#/E-COMPOSING))),1,
+		not(strlen(get(%#/E-TEXT))),2,
+		not(strlen(%0)),3,
+		strmatch(pos(%0,get(%#/E-TEXT)),#-1),4,
+		0
+	);
+	&E-TEXT %#=[setq(0,get(%#/E-TEXT))][switch(%vf,0,edit(%q0,%0,%1),%q0)];
+	@pemit %#=switch(%vf,
+		1,You are not composing a mail message.,
+		2,There is no text in the message to edit. Use -<text> to start the message.,
+		3,You must supply the text to replace. +edit <old text>/<new text>,
+		4,That text is not found in the message.,
+		0,u(%vs/FN_LENGTH_WARN,Edit successful. Use +proof to view the changes.,%#)
+	);
+
+@@ @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+
+&CMD_COMPOSE_SUBJECT Mail Com=$+subject *:
+	@vf me=switch(0,
+		strlen(get(%#/E-COMPOSING)),1,
+		lte(strlen(%0),40),2
+		0);
+	&E-SUBJ %#=switch(%vf,
+			1,,
+			2,mid(%0,0,40),
+			%0);
+	@pemit %#=
+		switch(%vf,
+			1,You are not composing a mail message.,
+			2,Subject truncated at 40 characters: "[mid(%0,0,40)]",
+			Subject changed to "%0".
+		)
+
+@@ @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+
+&CMD_COMPOSE_TO Mail Com=$+to *:
+	@vf me=[setq(0,u(%vs/FN_BADNPARSE,%0))][switch(0,
+		strlen(get(%#/E-COMPOSING)),1,
+		strlen(%q0),0,
+		%q0
+	)];
+	&E-TO %#=switch(%vf,
+		0,u(%vs/FN_NAMEPARSE,%0),
+		get(%#/E-TO)
+	);
+	@pemit %#=switch(%vf,
+		1,You are not composing a mail message.,
+		0,Message now To: [iter(get(%#/E-TO),name(##)%b)],
+		These names are not recognized: %vf%r%bThe "To:" list has been left unchanged.
+	)
+
+
+
+&CMD_COMPOSE_TO-add  Mail Com=$+to+ *:
+	@vf me=[setq(0,u(%vs/FN_BADNPARSE,%0))][switch(0,
+		strlen(get(%#/E-COMPOSING)),1,
+		strlen(%q0),0,
+		%q0
+	)];
+	&E-TO %#=switch(%vf,
+		0,setunion(get(%#/E-TO),u(%vs/FN_NAMEPARSE,%0)),
+		get(%#/E-TO)
+		);
+	@pemit %#=switch(%vf,
+		1,You are not composing a mail message.,
+		0,Message now To: [iter(get(%#/E-TO),name(##)%b)],
+		These names are not recognized: %vf%r%bThe "To:" list has been left unchanged.
+	)
+
+&CMD_COMPOSE_TO-sub  Mail Com=$+to- *:
+	@vf me=[setq(0,u(%vs/FN_BADNPARSE,%0))][switch(0,
+		strlen(get(%#/E-COMPOSING)),1,
+		strlen(%q0),0,
+		%q0
+	)];
+	&E-TO %#=switch(%vf,
+		0,setdiff(get(%#/E-TO),u(%vs/FN_NAMEPARSE,%0)),
+		get(%#/E-TO)
+		);
+	@pemit %#=switch(%vf,
+		1,You are not composing a mail message.,
+		0,Message now To: [iter(get(%#/E-TO),name(##)%b)],
+		These names are not recognized: %vf%r%bThe "To:" list has been left unchanged.
+	)
+
+@@ @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+
+&CMD_COMPOSE_CC Mail Com=$+cc *:
+	@vf me=[setq(0,u(%vs/FN_BADNPARSE,%0))][switch(0,
+		strlen(get(%#/E-COMPOSING)),1,
+		strlen(%q0),0,
+		%q0
+	)];
+	&E-CC %#=switch(%vf,
+		0,u(%vs/FN_NAMEPARSE,%0),
+		get(%#/E-CC)
+	);
+	@pemit %#=switch(%vf,
+		1,You are not composing a mail message.,
+		0,Message now Cc: [iter(get(%#/E-CC),name(##)%b)],
+		These names are not recognized: %vf%r%bThe "Cc:" list has been left unchanged.
+	)
+
+
+
+&CMD_COMPOSE_CC-add  Mail Com=$+cc+ *:
+	@vf me=[setq(0,u(%vs/FN_BADNPARSE,%0))][switch(0,
+		strlen(get(%#/E-COMPOSING)),1,
+		strlen(%q0),0,
+		%q0
+	)];
+	&E-CC %#=switch(%vf,
+		0,setunion(get(%#/E-CC),u(%vs/FN_NAMEPARSE,%0)),
+		get(%#/E-CC)
+		);
+	@pemit %#=switch(%vf,
+		1,You are not composing a mail message.,
+		0,Message now Cc: [iter(get(%#/E-CC),name(##)%b)],
+		These names are not recognized: %vf%r%bThe "Cc:" list has been left unchanged.
+	)
+
+
+&CMD_COMPOSE_CC-sub  Mail Com=$+cc- *:
+	@vf me=[setq(0,u(%vs/FN_BADNPARSE,%0))][switch(0,
+		strlen(get(%#/E-COMPOSING)),1,
+		strlen(%q0),0,
+		%q0
+	)];
+	&E-CC %#=switch(%vf,
+		0,setdiff(get(%#/E-CC),u(%vs/FN_NAMEPARSE,%0)),
+		get(%#/E-CC)
+		);
+	@pemit %#=switch(%vf,
+		1,You are not composing a mail message.,
+		0,Message now Cc: [iter(get(%#/E-CC),name(##)%b)],
+		These names are not recognized: %vf%r%bThe "Cc:" list has been left unchanged.
+	)
+
+
+@@ @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+
+&CMD_COMPOSE_BCC Mail Com=$+bcc *:
+	@vf me=[setq(0,u(%vs/FN_BADNPARSE,%0))][switch(0,
+		strlen(get(%#/E-COMPOSING)),1,
+		strlen(%q0),0,
+		%q0
+	)];
+	&E-BCC %#=switch(%vf,
+		0,u(%vs/FN_NAMEPARSE,%0),
+		get(%#/E-BCC)
+	);
+	@pemit %#=switch(%vf,
+		1,You are not composing a mail message.,
+		0,Message now Bcc: [iter(get(%#/E-BCC),name(##)%b)],
+		These names are not recognized: %vf%r%bThe "Bcc:" list has been left unchanged.
+	)
+
+
+
+&CMD_COMPOSE_BCC-add  Mail Com=$+bcc+ *:
+	@vf me=[setq(0,u(%vs/FN_BADNPARSE,%0))][switch(0,
+		strlen(get(%#/E-COMPOSING)),1,
+		strlen(%q0),0,
+		%q0
+	)];
+	&E-BCC %#=switch(%vf,
+		0,setunion(get(%#/E-BCC),u(%vs/FN_NAMEPARSE,%0)),
+		get(%#/E-BCC)
+		);
+	@pemit %#=switch(%vf,
+		1,You are not composing a mail message.,
+		0,Message now Bcc: [iter(get(%#/E-BCC),name(##)%b)],
+		These names are not recognized: %vf%r%bThe "Bcc:" list has been left unchanged.
+	)
+
+
+&CMD_COMPOSE_BCC-sub  Mail Com=$+bcc- *:
+	@vf me=[setq(0,u(%vs/FN_BADNPARSE,%0))][switch(0,
+		strlen(get(%#/E-COMPOSING)),1,
+		strlen(%q0),0,
+		%q0
+	)];
+	&E-BCC %#=switch(%vf,
+		0,setdiff(get(%#/E-BCC),u(%vs/FN_NAMEPARSE,%0)),
+		get(%#/E-BCC)
+		);
+	@pemit %#=switch(%vf,
+		1,You are not composing a mail message.,
+		0,Message now Bcc: [iter(get(%#/E-BCC),name(##)%b)],
+		These names are not recognized: %vf%r%bThe "Bcc:" list has been left unchanged.
+	)
+
+
+@@ @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@@ @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@@ Mail Delivery
+
+@@ @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@@ Called by the composer when the message is complete
+
+@@ Args: <sender dbref#>,<subj>,<to>,<cc>,<bcc>,<date>,<message>,<sig>
+@@           0             1     2     3    4    5      6          7
+
+&SUB_PICKUP Mail Sub=
+
+@@ Messages:
+
+	@switch/first 1=
+	and(
+		eq(words(setunion(%2,%3)),1),
+		strmatch(loc(%0),loc(setunion(%2,%3)))
+	),
+		{
+		@switch comp(%0,%2)=0,
+			{
+			@pemit %0=You send the mail to yourself.
+			}
+		,
+			{
+			@pemit/contents loc(%0)=[name(%0)] hands [name(setunion(%2, %3))] a message.
+			}
+		}
+	,eq(words(setunion(%2,%3)),0),
+		{
+		@pemit/contents loc(%0)=You send off message.
+		}
+	,
+		{
+		@pemit/contents loc(%0)=u(FN_PICKUPMSG,%0);
+		@wait 2=@dolist setunion(%2,%3)={
+			@pemit/contents loc(##)=u(FN_DELIVERMSG,%0,##)};
+		};
+
+@@ To: and Cc: lists
+	@dolist setunion(u(FN_AF-MAIL,%2),u(FN_AF-MAIL,%3))={
+		@trigger me/SUB_DELIVER=
+			u(FN_AF-RECV,##),
+			name(%0),
+			%1,
+			iter(%2,name(\#\#)%b),
+			iter(%3,name(\#\#)%b),,
+			%5,%6,%7,
+			switch(
+				u(FN_AF-SEND,##),u(FN_AF-RECV,##),,
+				You receive mail from [name(%0)]\, forwarded from [name(u(FN_AF-SEND,##))].
+			)
+		};
+@@ Bcc: list
+	@dolist setdiff(u(FN_AF-MAIL,%4),setunion(u(FN_AF-MAIL,%2),u(FN_AF-MAIL,%3)))={
+		@trigger me/SUB_DELIVER=
+			u(FN_AF-RECV,##),
+			name(%0),
+			%1,
+			iter(%2,name(\#\#)%b),
+			iter(%3,name(\#\#)%b),
+			\(You recieved a BCC copy.\),
+			%5,%6,%7,
+			switch(
+				u(FN_AF-SEND,##),u(FN_AF-RECV,##),
+				You receive BCC mail from [name(%0)].,
+				You receive mail from [name(%0)]\, forwarded from [name(u(FN_AF-RECV,##))].
+			)
+		}
+
+
+@@ @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@@ Messages
+
+&FN_PICKUPMSG Mail Sub=
+	switch(0,
+		strmatch(get(room(%0)/MAIL-PICKUP),),u(room(%0)/MAIL-PICKUP,name(%0)),
+		strmatch(get(%0/MAIL-PICKUP),),u(%0/MAIL-PICKUP,name(%0)),
+		[name(%0)] sends off a mail message.
+	)
+
+&FN_DELIVERMSG Mail Sub=
+	switch(0,
+		strmatch(get(room(%1)/MAIL-DELIVERY),),u(room(%1)/MAIL-DELIVERY,name(%1)),
+		strmatch(get(room(%0)/MAIL-DELIVERY),),u(room(%0)/MAIL-DELIVERY,name(%1)),
+		strmatch(get(%0/MAIL-DELIVERY),),u(%0/MAIL-DELIVERY,name(%1)),
+		[name(%1)] receives a new mail message.
+	)
+
+@@ @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@@ Figuring out who gets what c/o forwarding
+
+&FN_AF-MAIL Mail Sub=iter(%0,u(FN_AF2,##,0))
+&FN_AF2 Mail Sub=
+	switch(1,
+		eq(%1,3),%0,
+		strmatch(get(first(%0,-)/MAIL-FORWARD),),%0,
+		iter(get(first(%0,-)/MAIL-FORWARD),u(FN_AF2,##-%0,add(%1,1)))
+	)
+
+&FN_AF-SEND Mail Sub=first(revwords(%0,-),-)
+&FN_AF-RECV Mail Sub=first(%0,-)
+
+@@ @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@@ This puts everything into the recipient's 'mailbox'
+
+@@ Args: <recipient dbref#>,<sender>,<subj>,<to>,<cc>,<bcc>,<date>,<message>,<sig>,<deliver_pemit>
+@@                 0             1       2    3    4    5     6       7         8        9
+
+&SUB_DELIVER Mail Sub=
+	@wait me={
+		@notify me;
+		@vn me=[setq(0,lattr(%0/M-*))][add(edit(extract(%q0,words(%q0),1),M-,),1)];
+		&M-%vn %0=
+			Date: %6%r
+			From: %1%r
+			To: %3%r
+			Subject: %2%r
+			[switch(%4,,,Cc: %4%r)]
+			Status: N%r
+			%r
+			%7
+			[switch(%8,,,%r%8)];
+		@switch %9=,,{@pemit %0=%9};
+		@trigger me/SUB_CHECK_TOP_MSG=%vn
+	}
+
+&SUB_CHECK_TOP_MSG Mail Sub=
+	@switch %0=>[v(TOP_MESSAGE_ATTRIB)],
+		{
+		&TOP_MESSAGE_ATTRIB me=[add(v(TOP_MESSAGE_ATTRIB),1)];
+		@attribute/access M-[v(TOP_MESSAGE_ATTRIB)]=wizard;
+		@attribute/access M-[v(TOP_MESSAGE_ATTRIB)]=hidden
+		}
+
+@switch get(Mail Sub/TOP_MESSAGE_ATTRIB)=,
+	{@trigger Mail Sub/SUB_CHECK_TOP_MSG=1}
+
+
+@@ @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@@ @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@@ Help Screens:
+
+&HELP_MAIL Mail Sub=
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+> SENDING MAIL:       (for more help, type +HELP MAIL SENDING)
+> +mail <recipients>=<subject>    - Send mail to list of recipients
+> +forward <recipients>=<#>       - Forward mail to recipients
+>     <recipients> must be a comma-separated list, eg: Tash, Helen, Bacchus
+>
+> READING MAIL:       (for more help, type +HELP MAIL READING)
+> +read [<message range>]         - Read messages (or just see a count)
+> +skim [<message range>]         - View date/sender/subjects
+> +clear <message range>          - Erase messages
+>     <message range> can be like: 1 2 3, 5, 6, 7, 9-13 (any order!)
+>
+> REPLYING TO MAIL:   (for more help, type +HELP MAIL REPLYING)
+> +reply <#>                      - Reply to message, include message
+> +re <#>                         - Reply to message, don't include
+> +group <#>                      - Reply to sender & recipients of message
+>     <#> is the number of a message in your mailbox
+>
+> FOR MORE COMMANDS: Type +HELP MAIL OTHER for more commands
+>                         +HELP MAIL ATTRIBUTES to see what you can customize!
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+
+&HELP_MAIL_SENDING Mail Sub=
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+> SENDING MAIL:
+>
+> +mail <recipients>=<subject>
+>    This is the main command used to send mail to another character.
+>    The <recipients> must be character names separated by commas. The
+>    subject will but cut off after 40 characters.
+>      eg: +mail Tash, Helen, Bacchus=Can you inspect my house?
+>    Once you have used the +mail command, you'll be presented with
+>    the composer, which lets you enter and edit your message.
+>
+> +forward <recipients>=<#>
+>    This command lets you send a message that you have received to another
+>    character or list of characters. After you type the +forward command
+>    you are put into the composer so that you can add to or edit the message.
+>      eg: +forward Tash=2
+>
+> Type +HELP MAIL for a general overview of +mail commands
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+
+&HELP_MAIL_READING Mail Sub=
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+> READING MAIL:
+>
+> +read    This just shows a count of the messages in your mailbox, and
+>           tells you if any are new, and also if your mail is forwarded.
+>
+> +skim    This shows you a list of your messages, with date/sender/subject.
+>
+> In the following, <message range> means one of:
+>        all   (all of your messages)
+>        new   (all messages you haven't read yet)
+>        old   (all messages you have read)
+>    eg. 1 2 3, 4, 5, 6-7   (that is, message numbers broken up by spaces,
+>                            and/or commas, and/or with ranges, like 5-10)
+>
+> +read <message range>           Read those messages
+> +clear <message range>          Erase messages (this CANNOT be undone!)
+> +skim <message range>           Just list those messages
+> +unread <message range>         Mark messages as unread (so they become "new")
+>
+> Type +HELP MAIL for a general overview of +mail commands
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+
+&HELP_MAIL_REPLYING Mail Sub=
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+> REPLYING TO MAIL:
+>
+> In the following, <#> is a message number in your mailbox.
+>
+> +reply <#>
+>    This replies to the message indicated, and includes the entire message
+>    being replied to. This is handy for answering questions without
+>    having to retype what the questions were.
+>
+> +re <#>
+>    Just like +reply, but it doesn't include the message being replied to.
+>
+> +group <#>
+>    This is like +re (it does not include the message) but it is sent to
+>    the person who sent you the indicated message AND anyone who received
+>    that message (except for you, and any BCC recipients).
+>
+> Type +HELP MAIL for a general overview of +mail commands
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+
+&HELP_MAIL_OTHER Mail Sub=
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+> OTHER MAIL COMMANDS:
+>
+> +note <subject>=<contents>      - Send a short message to yourself
+>    +note doesn't let you compose your message; this is intended to leave
+>    quick notes to yourself. The subject is truncated at 40 characters,
+>    and your signature is not included.
+>
+> +autoforward[+|-] <recipients>  - Auto-forward all incoming messages
+> +autoforward                    - Check your forwarding list
+> +unforward                      - Cancel auto-forwarding
+>    "+autoforward Reepicheep" means that any mail sent to you will instead
+>    appear in Reepicheep's mailbox, though you will still see any delivery
+>    messages. "+autoforward+ Helen" means that both Reepicheep and Helen
+>    will now receive mail sent to you. "+autoforward- Helen" removes Helen
+>    from your forwarding list, leaving just Reepicheep on it.
+>
+>    For anyone who is curious, mail forwarding stops after 3 bounces.
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+
+&HELP_MAIL_ATTRIBUTES Mail Sub=
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+> Use the following commands to customize the way that mail works for you.
+>
+> &MAIL-CONTINUE me= %b OR  %r OR %r%r
+>    Each time you use the "-" command to enter more text into a message,
+>    the contents of this attribute are used to separate the new text from
+>    the old text. Use %b if you want to manually insert paragraph breaks,
+>    %r for simple paragraph breaks, or %r%r for paragraphs with spacing.
+>
+> &SIGNATURE me=--%rTash, Deity at Large
+>    This is added to the end of any mail you send out. Try and keep it short!
+>
+> &MAIL-PICKUP me=%0 sends off a message.
+>    This is what nearby people see when you send a message. %0 is replaced
+>    by your name.
+> &MAIL-DELIVERY me=%0 receives a message.
+>    This is what nearby people see when you receive a message, OR what
+>    people near the recipients see if they don't have MAIL-DELIVERY set.
+>    (Yes, this is an intentional change from our old +mail.)
+>
+> &MAIL-HAVEN here=1   (to set)     &MAIL-HAVEN here    (to clear)
+>    This shuts off (or turns on) mail delivery messages in the current room.
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+
+
+&HELP_MAIL_COMPOSER Mail Sub=
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+> MAIL COMPOSER:
+> -                             - See quick summary of following
+> -<message text>               - Add text to message
+> +send                         - Finish composing and send
+> +proof                        - Review the message being composed
+> +toss                         - Junk the message being composed
+> +subject <subject>            - Change subject of letter
+> +edit <old text>/<new text>   - Edit the message being composed
+> +include <obj>/<attr>         - Include an attribute from an object
+> +to[+|-] <recipients>         - Change/add/remove To: recipients
+>    (+to changes the list, +to+ adds recipients, +to- removes them.)
+> +cc[+|-] <recipients>         - Change/add/remove Cc: recipients
+>    (+cc changes the list, +cc+ adds recipients, +cc- removes them.)
+> +bcc[+|-] <recipients>        - Change/add/remove Bcc: recipients
+>    Bcc: recipients are not listed in the message itself (Blind Carbon Copy)
+>    (+bcc changes the list, +bcc+ adds recipients, +bcc- removes them.)
+> +mspell                       - Check the spelling of the message
+>
+> Type +HELP MAIL for an overview of other +mail commands.
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+
+&DAT_RANGE_EX Mail Sub=
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+>Improperly specified message range. Use:
+>        lists: 1 3 4 5
+>           or: 1, 3, 4, 5
+>       ranges: 3-7
+> combinations: 1 2-6, 9 11-14
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+
+&DAT_EDHELP Mail Sub=
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+>,------------------------------------------------------------------------
+>| Mail Composer Commands: (Type +HELP MAIL COMPOSER for more information)
+>|  -<message text>        +proof                 +send
+>|  +toss                  +edit <old>/<new>      +include <obj>/<attr>
+>|
+>|  +subject <subject>
+>|  +to[+|-] <recipients>  +cc[+|-] <recipients>  +bcc[+|-] <recipients>
+>`------------------------------------------------------------------------
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+
+@@ @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@@ Help commands:
+
+&CMD_HELP Mail Com=$+help mail:
+	@pemit %#=
+		[repeat(-,73)]%r
+		[u(%vs/HELP_MAIL)]
+
+&CMD_HELP_TOPIC Mail Com=$+help mail *:
+	@pemit %#=
+		[repeat(-,73)]%r
+		[setq(0,lattr(%vs/HELP_MAIL_%0*))]
+		[switch(words(%q0),1,u(%vs/%q0),
+			The following help topics are available for +mail:
+			[iter(lattr(%vs/HELP_MAIL*),%r+[edit(##,_,%b)])]
+		)]
+
+@@ @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@@ Spellcheck, c/o Mudlink, provided as an example
+@@
+@@ &CMD_MSPELL Mail Com=$+mspell:
+@@         @switch 0=
+@@ 	strlen(get(%#/E-TEXT)),
+@@                 {@pemit %#=You are not composing a message.}
+@@ 	,hasflag(*mudlink,CONNECTED),
+@@ 		{@pemit %#=
+@@ 	Sorry, our resident spellchecker is not online.
+@@ 		}
+@@ 	,
+@@                 {
+@@                 @pemit %#=Checking the spelling of your message...;
+@@                 @pemit *mudlink=@spell %N = [u(#1099/fn_spell,%#,E-TEXT)]
+@@                 }
